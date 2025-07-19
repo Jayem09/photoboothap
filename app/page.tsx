@@ -31,7 +31,7 @@ const FRAME_LAYOUTS: FrameLayout[] = [
     photoCount: 3,
     layout: 'vertical',
     description: 'Traditional vertical photo strip',
-    sampleImage: '/samples/classic-strip-3.png'
+    sampleImage: '/frames/classic-strip-3.png'
   },
   {
     id: 'layout-2',
@@ -39,7 +39,7 @@ const FRAME_LAYOUTS: FrameLayout[] = [
     photoCount: 1,
     layout: 'vertical',
     description: 'One large portrait photo',
-    sampleImage: '/samples/single-portrait.png'
+    sampleImage: '/frames/single-portrait.png'
   },
   {
     id: 'layout-3',
@@ -47,34 +47,31 @@ const FRAME_LAYOUTS: FrameLayout[] = [
     photoCount: 4,
     layout: 'vertical',
     description: 'Four photos in a vertical strip',
-    sampleImage: '/samples/photo-strip-4.png'
+    sampleImage: '/frames/4stripe-image.png'
   },
   {
     id: 'layout-4',
     name: 'Grid (4 photos)',
     photoCount: 4,
     layout: 'grid',
-    columns: 2,
-    rows: 2,
-    description: 'Four photos in a 2x2 grid',
-    sampleImage: '/samples/grid-4.png'
+    description: 'Four photos stripe',
+    sampleImage: '/frames/4stripe-image-grid.png'
   },
   {
     id: 'layout-5',
-    name: 'Wide Strip (6 photos)',
-    photoCount: 6,
+    name: 'Wide Strip (4 photos)',
+    photoCount: 4,
     layout: 'horizontal',
-    columns: 3,
-    rows: 2,
-    description: 'Six photos in a horizontal layout',
-    sampleImage: '/samples/wide-strip-6.png'
+    description: 'Four photos in a horizontal layout',
+    sampleImage: '/frames/wide-strip.png'
   }
 ];
 
 const HomePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('frame-selection');
   const [selectedLayout, setSelectedLayout] = useState<FrameLayout | null>(null);
-  const [currentPhoto, setCurrentPhoto] = useState<Photo | null>(null);
+  const [currentPhoto, setCurrentPhoto] = useState<Photo | Photo[] | null>(null);
+  const [capturedPhotos, setCapturedPhotos] = useState<Photo[]>([]);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({ basic: [], advanced: {} });
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
@@ -85,6 +82,8 @@ const HomePage: React.FC = () => {
 
   // Handle layout selection
   const handleLayoutSelect = useCallback((layout: FrameLayout) => {
+    console.log('Selected layout:', layout);
+    console.log('Photo count:', layout.photoCount);
     setSelectedLayout(layout);
     setViewMode('camera');
   }, []);
@@ -95,7 +94,7 @@ const HomePage: React.FC = () => {
     
     if (Array.isArray(photos)) {
       photos.forEach(photo => addPhoto(photo));
-      setCurrentPhoto(photos[0]);
+      setCurrentPhoto(photos); // Store all photos for photo strips
       setViewMode('editing');
     } else {
       setCurrentPhoto(photos);
@@ -107,23 +106,42 @@ const HomePage: React.FC = () => {
   // Handle photo update
   const handlePhotoUpdate = useCallback((updates: Partial<Photo>) => {
     if (currentPhoto) {
-      const updatedPhoto = { ...currentPhoto, ...updates };
-      setCurrentPhoto(updatedPhoto);
-      updatePhoto(currentPhoto.id, updates);
+      if (Array.isArray(currentPhoto)) {
+        // Handle array of photos - update all photos with the same updates
+        const updatedPhotos = currentPhoto.map(photo => ({ ...photo, ...updates }));
+        setCurrentPhoto(updatedPhotos);
+        // Update each photo individually
+        updatedPhotos.forEach(photo => updatePhoto(photo.id, updates));
+      } else {
+        // Handle single photo
+        const updatedPhoto = { ...currentPhoto, ...updates };
+        setCurrentPhoto(updatedPhoto);
+        updatePhoto(currentPhoto.id, updates);
+      }
     }
   }, [currentPhoto, updatePhoto]);
 
   // Handle download
   const handleDownload = useCallback(() => {
     if (currentPhoto) {
-      downloadPhoto(currentPhoto);
+      if (Array.isArray(currentPhoto)) {
+        // For multiple photos, download the first one as representative
+        downloadPhoto(currentPhoto[0]);
+      } else {
+        downloadPhoto(currentPhoto);
+      }
     }
   }, [currentPhoto, downloadPhoto]);
 
   // Handle share
   const handleShare = useCallback((platform: string) => {
     if (currentPhoto) {
-      sharePhoto(currentPhoto, platform);
+      if (Array.isArray(currentPhoto)) {
+        // For multiple photos, share the first one as representative
+        sharePhoto(currentPhoto[0], platform);
+      } else {
+        sharePhoto(currentPhoto, platform);
+      }
     }
   }, [currentPhoto, sharePhoto]);
 
@@ -287,7 +305,7 @@ const HomePage: React.FC = () => {
               {layout.sampleImage ? (
                 <div className="w-16 h-20 bg-white border border-gray-200 rounded shadow-sm flex items-center justify-center">
                   <img 
-                    src={`${layout.sampleImage}?v=${Date.now()}`}
+                    src={layout.sampleImage}
                     alt={layout.name}
                     className="w-12 h-16 object-contain"
                     onError={(e) => {
@@ -340,37 +358,17 @@ const HomePage: React.FC = () => {
             </div>
             
             {/* Camera Interface */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Camera Feed */}
-              <div className="lg:col-span-2">
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <CameraPreview
-                    key="camera-main"
-                    onPhotoCaptured={handlePhotoCaptured}
-                    photoSize="medium"
-                    countdownDuration={3}
-                    audioEnabled={true}
-                    multiShot={true}
-                    multiShotCount={selectedLayout.photoCount}
-                  />
-                </div>
-              </div>
-
-              {/* Captured Photos Preview */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white">Captured Photos</h3>
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <div className="space-y-3">
-                    {Array.from({ length: selectedLayout.photoCount }).map((_, index) => (
-                      <div
-                        key={index}
-                        className="bg-white/20 rounded-lg h-20 flex items-center justify-center border border-white/30"
-                      >
-                        <span className="text-white/60 text-sm">Photo {index + 1}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <CameraPreview
+                  key="camera-main"
+                  onPhotoCaptured={handlePhotoCaptured}
+                  photoSize="medium"
+                  countdownDuration={3}
+                  audioEnabled={true}
+                  multiShot={true}
+                  multiShotCount={selectedLayout.photoCount}
+                />
               </div>
             </div>
 

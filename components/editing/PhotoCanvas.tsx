@@ -14,7 +14,7 @@ interface FrameLayout {
 }
 
 interface PhotoCanvasProps {
-  photo: Photo;
+  photo: Photo | Photo[]; // Changed to accept single photo or array of photos
   appliedFilters: AppliedFilters;
   stickers: Sticker[];
   selectedFrame?: Frame;
@@ -41,12 +41,33 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
+  // Convert photo to array for consistent handling
+  const photos = Array.isArray(photo) ? photo : [photo];
+  const primaryPhoto = photos[0]; // Use first photo as primary for metadata
+
+  // Function to get dynamic rotation for grid layout
+  const getGridRotation = (index: number) => {
+    const rotations = [-3, 2, -1, 4]; // Different rotations for each photo
+    return rotations[index] || 0;
+  };
+
+  // Function to get offset positioning for grid layout
+  const getGridOffset = (index: number) => {
+    const offsets = [
+      { x: -2, y: -1 }, // Top left
+      { x: 1, y: -2 },  // Top right
+      { x: -1, y: 1 },  // Bottom left
+      { x: 2, y: 0 }    // Bottom right
+    ];
+    return offsets[index] || { x: 0, y: 0 };
+  };
+
   // Set initial processed image source
   useEffect(() => {
-    if (photo.originalSrc) {
-      setProcessedImageSrc(photo.processedSrc || photo.originalSrc);
+    if (primaryPhoto?.originalSrc) {
+      setProcessedImageSrc(primaryPhoto.processedSrc || primaryPhoto.originalSrc);
     }
-  }, [photo.originalSrc, photo.processedSrc]);
+  }, [primaryPhoto?.originalSrc, primaryPhoto?.processedSrc]);
 
   // Apply CSS filters based on appliedFilters
   const getImageStyle = () => {
@@ -189,7 +210,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedSticker, stickers, onPhotoUpdate]);
 
-  if (!photo.originalSrc) {
+  if (!primaryPhoto?.originalSrc) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
         <div className="text-gray-500">No photo available</div>
@@ -202,35 +223,135 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     const photoCount = selectedLayout?.photoCount || 3;
     const layout = selectedLayout?.layout || 'vertical';
     
+    // For single portrait, create a different layout
+    if (photoCount === 1) {
+      const portraitStyle = {
+        backgroundColor: 'white',
+        border: '2px solid white',
+        borderRadius: '8px',
+        padding: '12px',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+        width: '200px',
+        margin: '0 auto',
+      };
+
+      return (
+        <div className="relative" style={portraitStyle}>
+          {/* Single Portrait */}
+          <div className="relative">
+            <div className="bg-black rounded-none h-48">
+              {/* Photo content */}
+              <img
+                src={primaryPhoto.originalSrc}
+                alt="Portrait"
+                className="w-full h-full object-cover"
+                style={getImageStyle()}
+              />
+              
+              {/* Sticker overlays */}
+              {stickers.map((sticker) => (
+                <div
+                  key={sticker.id}
+                  className={`absolute cursor-move ${
+                    selectedSticker === sticker.id ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  style={{
+                    left: sticker.x,
+                    top: sticker.y,
+                    width: sticker.width,
+                    height: sticker.height,
+                    transform: `rotate(${sticker.rotation}deg)`,
+                    zIndex: sticker.zIndex,
+                  }}
+                  onClick={() => handleStickerClick(sticker.id)}
+                  onMouseDown={(e) => handleMouseDown(e, sticker.id)}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                >
+                  <img
+                    src={sticker.src}
+                    alt={sticker.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Portrait footer */}
+          <div className="text-center mt-3 text-gray-600 text-xs">
+            PhotoBooth - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
+          </div>
+        </div>
+      );
+    }
+    
+    // For multiple photos, create photo strip
     const stripStyle = {
-      backgroundColor: 'white',
-      border: '2px solid white',
-      borderRadius: '8px',
-      padding: '12px',
-      boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
-      width: layout === 'horizontal' ? '300px' : '200px',
+      background: layout === 'grid' ? '#f8f9fa' : layout === 'horizontal' ? 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)' : 'white',
+      border: layout === 'grid' ? '1px solid #e9ecef' : layout === 'horizontal' ? '3px solid white' : '2px solid white',
+      borderRadius: layout === 'grid' ? '12px' : layout === 'horizontal' ? '4px' : '8px',
+      padding: layout === 'grid' ? '16px' : layout === 'horizontal' ? '8px' : '12px',
+      boxShadow: layout === 'grid' ? '0 8px 25px rgba(0,0,0,0.1)' : layout === 'horizontal' ? '0 8px 25px rgba(0,0,0,0.15)' : '0 4px 8px rgba(0,0,0,0.15)',
+      width: layout === 'grid' ? '320px' : layout === 'horizontal' ? '420px' : '200px',
       margin: '0 auto',
     };
 
     return (
       <div className="relative" style={stripStyle}>
         {/* Photo Strip Container */}
-        <div className={layout === 'horizontal' ? 'grid grid-cols-3 gap-1' : 'space-y-1'}>
+        {layout === 'horizontal' && (
+          <>
+            {/* Main torn edge */}
+            <div 
+              className="absolute -right-1 top-0 bottom-0 w-3 bg-white"
+              style={{
+                clipPath: 'polygon(0 0, 100% 0, 85% 15%, 100% 30%, 85% 45%, 100% 60%, 85% 75%, 100% 90%, 85% 100%, 0 100%)',
+                boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
+              }}
+            />
+            {/* Additional torn edge detail */}
+            <div 
+              className="absolute -right-2 top-2 bottom-2 w-1 bg-white opacity-60"
+              style={{
+                clipPath: 'polygon(0 0, 100% 0, 70% 25%, 100% 50%, 70% 75%, 100% 100%, 0 100%)'
+              }}
+            />
+            {/* Subtle border accent */}
+            <div 
+              className="absolute inset-0 border border-white/20 pointer-events-none"
+              style={{ borderRadius: '4px' }}
+            />
+          </>
+        )}
+        <div className={
+          layout === 'grid' ? 'grid grid-cols-2 gap-4 p-4 relative' : 
+          layout === 'horizontal' ? `grid grid-cols-${photoCount} gap-0` : 
+          'space-y-1'
+        }>
           {/* Photos based on layout */}
           {Array.from({ length: photoCount }).map((_, index) => (
             <div key={index} className="relative">
-                              <div 
-                  className={`bg-black rounded-none ${
-                    layout === 'horizontal' ? 'h-24' : 'h-32'
-                  }`}
-                  style={{
-                    border: '1px solid #e5e7eb',
-                    marginBottom: layout === 'vertical' && index < photoCount - 1 ? '2px' : '0'
-                  }}
-                >
+              <div 
+                className={`bg-black rounded-none ${
+                  layout === 'grid' ? 'h-32' :
+                  layout === 'horizontal' ? 'h-36' : 'h-32'
+                }`}
+                style={{
+                  border: layout === 'grid' ? '3px solid white' : layout === 'horizontal' ? '2px solid white' : '1px solid #e5e7eb',
+                  marginBottom: layout === 'vertical' && index < photoCount - 1 ? '2px' : '0',
+                  transform: layout === 'grid' ? `rotate(${getGridRotation(index)}deg) translate(${getGridOffset(index).x}px, ${getGridOffset(index).y}px)` : 'none',
+                  boxShadow: layout === 'grid' ? '0 6px 20px rgba(0,0,0,0.2)' : layout === 'horizontal' ? '0 2px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.1)' : 'none',
+                  transition: layout === 'grid' ? 'transform 0.3s ease' : layout === 'horizontal' ? 'all 0.3s ease' : 'none',
+                  backgroundColor: layout === 'grid' ? 'white' : 'black',
+                  padding: layout === 'grid' ? '8px' : '0',
+                  borderRight: layout === 'horizontal' && index < photoCount - 1 ? '2px solid white' : 'none',
+                  position: layout === 'horizontal' ? 'relative' : 'static'
+                }}
+              >
                 {/* Photo content */}
                 <img
-                  src={photo.originalSrc}
+                  src={photos[index]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc}
                   alt={`Photo ${index + 1}`}
                   className="w-full h-full object-cover"
                   style={getImageStyle()}
@@ -293,11 +414,18 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
       {/* Photo Info */}
       <div className="text-center space-y-2">
         <div className="text-sm text-gray-600">
-          Size: {photo.metadata.width} × {photo.metadata.height}
+          Photos: {photos.length} captured
         </div>
-        <div className="text-sm text-gray-600">
-          File size: {(photo.metadata.fileSize / 1024).toFixed(1)} KB
-        </div>
+        {primaryPhoto?.metadata && (
+          <>
+            <div className="text-sm text-gray-600">
+              Size: {primaryPhoto.metadata.width} × {primaryPhoto.metadata.height}
+            </div>
+            <div className="text-sm text-gray-600">
+              File size: {(primaryPhoto.metadata.fileSize / 1024).toFixed(1)} KB
+            </div>
+          </>
+        )}
         {appliedFilters.basic.length > 0 && (
           <div className="text-sm text-blue-600">
             Filters: {appliedFilters.basic.join(', ')}
