@@ -463,6 +463,41 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
     setSelectedPhotos(new Set());
   };
 
+  // Get video filter style based on selectedFilter
+  const getVideoFilterStyle = () => {
+    let filter = '';
+    switch (selectedFilter) {
+      case 'B&W':
+        filter = 'grayscale(100%)';
+        break;
+      case 'Sepia':
+        filter = 'sepia(100%)';
+        break;
+      case 'Vintage':
+        filter = 'sepia(100%) brightness(1.1) contrast(1.2)';
+        break;
+      case 'Soft':
+        filter = 'brightness(1.05) blur(1px)';
+        break;
+      case 'Noir':
+        filter = 'grayscale(100%) contrast(1.5) brightness(0.9)';
+        break;
+      case 'Vivid':
+        filter = 'saturate(1.5) contrast(1.2)';
+        break;
+      case 'Warm':
+        filter = 'brightness(1.05) saturate(1.1)';
+        break;
+      case 'Cool':
+        filter = 'brightness(0.95) saturate(0.9)';
+        break;
+      default:
+        filter = 'none';
+        break;
+    }
+    return { filter };
+  };
+
   // Error state
   if (error) {
     return (
@@ -581,14 +616,16 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Camera Feed - Left Side */}
         <div className="lg:col-span-2">
-          <div className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-96 lg:h-[500px]">
+          <div
+            className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-96 lg:h-[500px]"
+          >
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
               className="w-full h-full object-cover"
-              style={{ transform: 'scaleX(-1)' }}
+              style={{ transform: 'scaleX(-1)', ...getVideoFilterStyle() }}
             />
             <canvas
               ref={canvasRef}

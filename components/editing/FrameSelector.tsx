@@ -75,6 +75,7 @@ const FrameSelector: React.FC<FrameSelectorProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [hoveredFrame, setHoveredFrame] = useState<string | null>(null);
+  const [frameColor, setFrameColor] = useState<string>('#ffffff'); // default to white
 
   // Filter frames by category
   const filteredFrames = SAMPLE_FRAMES.filter(frame => 
@@ -126,6 +127,31 @@ const FrameSelector: React.FC<FrameSelectorProps> = ({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Frame Color Selector */}
+      <div className="flex flex-wrap justify-center gap-2 mt-6">
+        {['#ffffff', '#000000', '#ff69b4', '#4ade80', '#3b82f6', '#fde047', '#a78bfa', '#be123c'].map((color) => (
+          <button
+            key={color}
+            onClick={() => setFrameColor(color)}
+            className="w-8 h-8 rounded-full border-2 border-gray-300"
+            style={{
+              backgroundColor: color,
+              borderColor: frameColor === color ? '#f472b6' : '#d1d5db',
+              boxShadow: frameColor === color ? '0 0 0 2px #f472b6' : undefined,
+            }}
+            aria-label={`Select frame color ${color}`}
+          />
+        ))}
+        {/* Optional: Custom color picker */}
+        <input
+          type="color"
+          value={frameColor}
+          onChange={e => setFrameColor(e.target.value)}
+          className="w-8 h-8 rounded-full border-2 border-gray-300 ml-2"
+          aria-label="Custom frame color"
+        />
       </div>
 
       {/* Frame Grid */}

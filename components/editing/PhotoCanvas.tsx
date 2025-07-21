@@ -14,7 +14,7 @@ interface FrameLayout {
 }
 
 interface PhotoCanvasProps {
-  photo: Photo | Photo[]; // Changed to accept single photo or array of photos
+  photo: Photo | Photo[];
   appliedFilters: AppliedFilters;
   stickers: Sticker[];
   selectedFrame?: Frame;
@@ -35,6 +35,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   onShare,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedImageSrc, setProcessedImageSrc] = useState<string>('');
   const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
@@ -43,21 +44,21 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
 
   // Convert photo to array for consistent handling
   const photos = Array.isArray(photo) ? photo : [photo];
-  const primaryPhoto = photos[0]; // Use first photo as primary for metadata
+  const primaryPhoto = photos[0];
 
   // Function to get dynamic rotation for grid layout
   const getGridRotation = (index: number) => {
-    const rotations = [-3, 2, -1, 4]; // Different rotations for each photo
+    const rotations = [-3, 2, -1, 4];
     return rotations[index] || 0;
   };
 
   // Function to get offset positioning for grid layout
   const getGridOffset = (index: number) => {
     const offsets = [
-      { x: -2, y: -1 }, // Top left
-      { x: 1, y: -2 },  // Top right
-      { x: -1, y: 1 },  // Bottom left
-      { x: 2, y: 0 }    // Bottom right
+      { x: -2, y: -1 },
+      { x: 1, y: -2 },
+      { x: -1, y: 1 },
+      { x: 2, y: 0 }
     ];
     return offsets[index] || { x: 0, y: 0 };
   };
@@ -73,7 +74,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   const getImageStyle = () => {
     let filter = '';
     
-    // Apply basic filters
     appliedFilters.basic.forEach(basicFilter => {
       switch (basicFilter) {
         case 'grayscale':
@@ -105,7 +105,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
       }
     });
 
-    // Apply advanced filters
     Object.entries(appliedFilters.advanced).forEach(([key, value]) => {
       switch (key) {
         case 'brightness':
@@ -127,6 +126,231 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
 
     return { filter: filter.trim() || 'none' };
   };
+
+  /**
+   * Downloads the current photo strip as an image.
+   *
+   * This function draws the photo strip (with the selected layout, aspect ratio, and stickers)
+   * onto a hidden canvas, preserving the original aspect ratio of each photo. It then
+   * triggers a download of the resulting image as a PNG file. The function handles
+   * different layouts (vertical, horizontal, grid) and ensures the preview matches the
+   * downloaded image as closely as possible.
+   */
+  const handleDownload = useCallback(async () => {
+    if (!previewRef.current) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Use html2canvas library (you'll need to install it)
+      // For now, we'll use a different approach with canvas
+      
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const photoCount = selectedLayout?.photoCount || 3;
+      const layout = selectedLayout?.layout || 'vertical';
+      
+      // Set canvas dimensions based on layout to match preview exactly
+      let canvasWidth, canvasHeight;
+      
+      if (photoCount === 1) {
+        canvasWidth = 200;
+        canvasHeight = 100;
+      } else if (layout === 'horizontal') {
+        canvasWidth = 420;
+        canvasHeight = 200;
+      } else if (layout === 'grid') {
+        canvasWidth = 320;
+        canvasHeight = 320;
+      } else { // vertical - square crop, bigger images, 30px spacing
+        const boxWidth = 420; // width of each 16:9 image
+        const boxHeight = Math.round(boxWidth * 9 / 16); // 236px for 16:9
+        const spacing = 25;
+        const topMargin = 40;
+        const bottomMargin = 160; // extra space for footer
+        canvasWidth = 480;
+        canvasHeight = topMargin + (boxHeight * photoCount) + (spacing * (photoCount - 1)) + 250; // 80px bottom margin for extra padding
+      }
+      
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      // Create background
+      if (layout === 'grid') {
+        ctx.fillStyle = '#f8f9fa';
+      } else if (layout === 'horizontal') {
+        // Create gradient background
+        const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+        gradient.addColorStop(0, '#ffffff');
+        gradient.addColorStop(1, '#f8f9fa');
+        ctx.fillStyle = gradient;
+      } else {
+        ctx.fillStyle = '#ffffff';
+      }
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      // Draw border
+      ctx.strokeStyle = layout === 'grid' ? '#e9ecef' : '#ffffff';
+      ctx.lineWidth = layout === 'grid' ? 1 : layout === 'horizontal' ? 3 : 2;
+      ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
+
+      // Load and draw photos
+      const loadImage = (src: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+      };
+
+      for (let i = 0; i < photoCount; i++) {
+        const photoSrc = photos[i]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc;
+        if (!photoSrc) continue;
+
+        try {
+          const img = await loadImage(photoSrc);
+          
+          let x, y, width, height;
+          
+          if (layout === 'vertical') {
+            const boxWidth = 420; // width of each 3:2 image
+            const boxHeight = Math.round(boxWidth * 2 / 3); // 280px for 3:2
+            const spacing = 30;
+            const topMargin = 40;
+            const x = (canvasWidth - boxWidth) / 2;
+            const y = topMargin + i * (boxHeight + spacing);
+
+            // Crop to 3:2
+            const targetAspect = 3 / 2;
+            const imgAspect = img.width / img.height;
+            let sx, sy, sWidth, sHeight;
+            if (imgAspect > targetAspect) {
+              // Image is wider than 3:2, crop sides
+              sHeight = img.height;
+              sWidth = img.height * targetAspect;
+              sx = (img.width - sWidth) / 2;
+              sy = 0;
+            } else {
+              // Image is taller than 3:2, crop top/bottom
+              sWidth = img.width;
+              sHeight = img.width / targetAspect;
+              sx = 0;
+              sy = (img.height - sHeight) / 2;
+            }
+
+            // Fill background with white
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, y, boxWidth, boxHeight);
+
+            // Draw the cropped 3:2 image centered in the box
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, boxWidth, boxHeight);
+          } else if (layout === 'grid') {
+            const col = i % 2;
+            const row = Math.floor(i / 2);
+            const x = 16 + col * 160;
+            const y = 16 + row * 160;
+            const width = 128;
+            const height = 128;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, y, width, height);
+            ctx.drawImage(img, x, y, width, height);
+          } else if (layout === 'horizontal') {
+            const photoWidth = (canvasWidth - 16) / photoCount;
+            const x = 8 + (i * photoWidth);
+            const y = 8;
+            const width = photoWidth - 4;
+            const height = canvasHeight - 40;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, y, width, height);
+            ctx.drawImage(img, x, y, width, height);
+          } else if (photoCount === 1) {
+            // Single photo: portrait style
+            const x = 12;
+            const y = 12;
+            const width = canvasWidth - 24;
+            const height = 400;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x, y, width, height);
+            ctx.drawImage(img, x, y, width, height);
+          }
+
+          // Draw photo
+          const boxWidth = 400;
+          const boxHeight = 300;
+          const imgAspect = img.width / img.height;
+          const boxAspect = boxWidth / boxHeight;
+
+          let drawWidth, drawHeight, offsetX, offsetY;
+
+          if (imgAspect > boxAspect) {
+            // Image is wider than the box: fit width, letterbox top/bottom
+            drawWidth = boxWidth;
+            drawHeight = boxWidth / imgAspect;
+            offsetX = x;
+            offsetY = y + (boxHeight - drawHeight) / 2;
+          } else {
+            // Image is taller than the box: fit height, pillarbox left/right
+            drawHeight = boxHeight;
+            drawWidth = boxHeight * imgAspect;
+            offsetX = x + (boxWidth - drawWidth) / 2;
+            offsetY = y;
+          }
+
+          // Optional: fill background with white
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x, y, boxWidth, boxHeight);
+
+          // Draw the image centered in the box
+          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+          
+          if (layout === 'grid') {
+            ctx.restore();
+          }
+          
+        } catch (error) {
+          console.error('Error loading image:', error);
+        }
+      }
+
+      // Draw stickers
+      for (const sticker of stickers) {
+        try {
+          const stickerImg = await loadImage(sticker.src);
+          ctx.save();
+          ctx.translate(sticker.x + sticker.width/2, sticker.y + sticker.height/2);
+          ctx.rotate((sticker.rotation * Math.PI) / 180);
+          ctx.drawImage(stickerImg, -sticker.width/2, -sticker.height/2, sticker.width, sticker.height);
+          ctx.restore();
+        } catch (error) {
+          console.error('Error loading sticker:', error);
+        }
+      }
+
+      // Draw footer text with proper positioning
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '17px Arial';  // Larger font for footer
+      ctx.textAlign = 'center';
+      const footerText = `Adelaide - ${new Date().toLocaleDateString()}, ${new Date().toLocaleTimeString()}`;
+      ctx.fillText(footerText, canvasWidth / 2, canvasHeight - 13);  // Adjust position
+
+      // Download the canvas as image
+      const link = document.createElement('a');
+      link.download = `photobooth-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error('Error downloading image:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [photos, primaryPhoto, selectedLayout, stickers, appliedFilters]);
+      
 
   // Handle sticker selection
   const handleStickerClick = useCallback((stickerId: string) => {
@@ -155,7 +379,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     const newX = e.clientX - rect.left - dragOffset.x;
     const newY = e.clientY - rect.top - dragOffset.y;
 
-    // Update sticker position
     const updatedStickers = stickers.map(s =>
       s.id === selectedSticker ? { ...s, x: newX, y: newY } : s
     );
@@ -218,7 +441,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     );
   }
 
-    // Create photo strip based on selected layout
+  // Create photo strip based on selected layout
   const createPhotoStrip = () => {
     const photoCount = selectedLayout?.photoCount || 3;
     const layout = selectedLayout?.layout || 'vertical';
@@ -237,10 +460,8 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
 
       return (
         <div className="relative" style={portraitStyle}>
-          {/* Single Portrait */}
           <div className="relative">
             <div className="bg-black rounded-none h-48">
-              {/* Photo content */}
               <img
                 src={primaryPhoto.originalSrc}
                 alt="Portrait"
@@ -248,7 +469,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
                 style={getImageStyle()}
               />
               
-              {/* Sticker overlays */}
               {stickers.map((sticker) => (
                 <div
                   key={sticker.id}
@@ -278,7 +498,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
             </div>
           </div>
 
-          {/* Portrait footer */}
           <div className="text-center mt-3 text-gray-600 text-xs">
             PhotoBooth - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
           </div>
@@ -299,10 +518,8 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
 
     return (
       <div className="relative" style={stripStyle}>
-        {/* Photo Strip Container */}
         {layout === 'horizontal' && (
           <>
-            {/* Main torn edge */}
             <div 
               className="absolute -right-1 top-0 bottom-0 w-3 bg-white"
               style={{
@@ -310,14 +527,12 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
                 boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
               }}
             />
-            {/* Additional torn edge detail */}
             <div 
               className="absolute -right-2 top-2 bottom-2 w-1 bg-white opacity-60"
               style={{
                 clipPath: 'polygon(0 0, 100% 0, 70% 25%, 100% 50%, 70% 75%, 100% 100%, 0 100%)'
               }}
             />
-            {/* Subtle border accent */}
             <div 
               className="absolute inset-0 border border-white/20 pointer-events-none"
               style={{ borderRadius: '4px' }}
@@ -329,67 +544,70 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
           layout === 'horizontal' ? `grid grid-cols-${photoCount} gap-0` : 
           'space-y-1'
         }>
-          {/* Photos based on layout */}
-          {Array.from({ length: photoCount }).map((_, index) => (
-            <div key={index} className="relative">
-              <div 
-                className={`bg-black rounded-none ${
-                  layout === 'grid' ? 'h-32' :
-                  layout === 'horizontal' ? 'h-36' : 'h-32'
-                }`}
-                style={{
-                  border: layout === 'grid' ? '3px solid white' : layout === 'horizontal' ? '2px solid white' : '1px solid #e5e7eb',
-                  marginBottom: layout === 'vertical' && index < photoCount - 1 ? '2px' : '0',
-                  transform: layout === 'grid' ? `rotate(${getGridRotation(index)}deg) translate(${getGridOffset(index).x}px, ${getGridOffset(index).y}px)` : 'none',
-                  boxShadow: layout === 'grid' ? '0 6px 20px rgba(0,0,0,0.2)' : layout === 'horizontal' ? '0 2px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.1)' : 'none',
-                  transition: layout === 'grid' ? 'transform 0.3s ease' : layout === 'horizontal' ? 'all 0.3s ease' : 'none',
-                  backgroundColor: layout === 'grid' ? 'white' : 'black',
-                  padding: layout === 'grid' ? '8px' : '0',
-                  borderRight: layout === 'horizontal' && index < photoCount - 1 ? '2px solid white' : 'none',
-                  position: layout === 'horizontal' ? 'relative' : 'static'
-                }}
-              >
-                {/* Photo content */}
-                <img
-                  src={photos[index]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc}
-                  alt={`Photo ${index + 1}`}
-                  className="w-full h-full object-cover"
-                  style={getImageStyle()}
-                />
-                
-                {/* Sticker overlays for each photo */}
-                {stickers.map((sticker) => (
-                  <div
-                    key={`${sticker.id}-${index}`}
-                    className={`absolute cursor-move ${
-                      selectedSticker === sticker.id ? 'ring-2 ring-blue-500' : ''
-                    }`}
-                    style={{
-                      left: sticker.x,
-                      top: sticker.y,
-                      width: sticker.width,
-                      height: sticker.height,
-                      transform: `rotate(${sticker.rotation}deg)`,
-                      zIndex: sticker.zIndex,
-                    }}
-                    onClick={() => handleStickerClick(sticker.id)}
-                    onMouseDown={(e) => handleMouseDown(e, sticker.id)}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                  >
-                    <img
-                      src={sticker.src}
-                      alt={sticker.name}
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                ))}
+          {Array.from({ length: photoCount }).map((_, index) => {
+            // Calculate aspect ratio for each photo
+            const meta = photos[index]?.metadata || primaryPhoto?.metadata;
+            const aspectRatio = meta ? `${meta.width} / ${meta.height}` : '4 / 3';
+            return (
+              <div key={index} className="relative">
+                <div 
+                  className={`bg-black rounded-none ${
+                    layout === 'grid' ? 'h-32' :
+                    layout === 'horizontal' ? 'h-36' : ''
+                  }`}
+                  style={{
+                    height: layout === 'vertical' ? undefined : undefined,
+                    aspectRatio: layout === 'vertical' ? aspectRatio : undefined,
+                    border: layout === 'grid' ? '3px solid white' : layout === 'horizontal' ? '2px solid white' : '1px solid #e5e7eb',
+                    marginBottom: layout === 'vertical' && index < photoCount - 1 ? '10px' : '0',
+                    transform: layout === 'grid' ? `rotate(${getGridRotation(index)}deg) translate(${getGridOffset(index).x}px, ${getGridOffset(index).y}px)` : 'none',
+                    boxShadow: layout === 'grid' ? '0 6px 20px rgba(0,0,0,0.2)' : layout === 'horizontal' ? '0 2px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.1)' : 'none',
+                    transition: layout === 'grid' ? 'transform 0.3s ease' : layout === 'horizontal' ? 'all 0.3s ease' : 'none',
+                    backgroundColor: layout === 'grid' ? 'white' : 'black',
+                    padding: layout === 'grid' ? '8px' : '0',
+                    borderRight: layout === 'horizontal' && index < photoCount - 1 ? '2px solid white' : 'none',
+                    position: layout === 'horizontal' ? 'relative' : 'static'
+                  }}
+                >
+                  <img
+                    src={photos[index]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc}
+                    alt={`Photo ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    style={getImageStyle()}
+                  />
+                  
+                  {stickers.map((sticker) => (
+                    <div
+                      key={`${sticker.id}-${index}`}
+                      className={`absolute cursor-move ${
+                        selectedSticker === sticker.id ? 'ring-2 ring-blue-500' : ''
+                      }`}
+                      style={{
+                        left: sticker.x,
+                        top: sticker.y,
+                        width: sticker.width,
+                        height: sticker.height,
+                        transform: `rotate(${sticker.rotation}deg)`,
+                        zIndex: sticker.zIndex,
+                      }}
+                      onClick={() => handleStickerClick(sticker.id)}
+                      onMouseDown={(e) => handleMouseDown(e, sticker.id)}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                    >
+                      <img
+                        src={sticker.src}
+                        alt={sticker.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Photo strip footer */}
         <div className="text-center mt-3 text-gray-600 text-xs">
           PhotoBooth - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
         </div>
@@ -400,7 +618,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   return (
     <div className="flex flex-col items-center space-y-6">
       {/* Photo Strip Display */}
-      <div className="relative">
+      <div className="relative" ref={previewRef}>
         {createPhotoStrip()}
         
         {/* Processing Overlay */}
@@ -447,7 +665,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
       <div className="flex flex-wrap gap-2">
         <Button 
           label="Download" 
-          onClick={onDownload}
+          onClick={handleDownload}
         />
         <Button 
           label="Share on Facebook" 
