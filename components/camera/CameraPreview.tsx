@@ -712,7 +712,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
                   <img
                     src={photo.originalSrc}
                     alt={`Photo ${index + 1}`}
-                    className="w-full h-32 object-cover"
+                    className="w-full h-100 object-cover"
                     style={getImageStyle(photo.filtersApplied)}
                   />
                   <div className="absolute top-2 right-2 bg-white bg-opacity-75 text-gray-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">

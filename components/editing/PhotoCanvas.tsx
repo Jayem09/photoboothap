@@ -22,6 +22,7 @@ interface PhotoCanvasProps {
   onPhotoUpdate: (updates: Partial<Photo>) => void;
   onDownload: () => void;
   onShare: (platform: string) => void;
+  onRetake?: () => void;
 }
 
 const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
@@ -33,6 +34,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   onPhotoUpdate,
   onDownload,
   onShare,
+  onRetake,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -41,6 +43,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [stripColor, setStripColor] = useState<string>('#ffffff'); // default to white
 
   // Convert photo to array for consistent handling
   const photos = Array.isArray(photo) ? photo : [photo];
@@ -168,10 +171,10 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         canvasHeight = 320;
       } else { // vertical - square crop, bigger images, 30px spacing
         const boxWidth = 420; // width of each 16:9 image
-        const boxHeight = Math.round(boxWidth * 9 / 16); // 236px for 16:9
-        const spacing = 25;
+        const boxHeight = Math.round(boxWidth * 9 / 13); // 236px for 16:9
+        // const spacing = 1000;
         const topMargin = 40;
-        const bottomMargin = 160; // extra space for footer
+        const bottomMargin = 360; // extra space for footer
         canvasWidth = 480;
         canvasHeight = topMargin + (boxHeight * photoCount) + (spacing * (photoCount - 1)) + 250; // 80px bottom margin for extra padding
       }
@@ -221,7 +224,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
           if (layout === 'vertical') {
             const boxWidth = 420; // width of each 3:2 image
             const boxHeight = Math.round(boxWidth * 2 / 3); // 280px for 3:2
-            const spacing = 30;
+            const spacing = 80;
             const topMargin = 40;
             const x = (canvasWidth - boxWidth) / 2;
             const y = topMargin + i * (boxHeight + spacing);
@@ -293,21 +296,21 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
             drawWidth = boxWidth;
             drawHeight = boxWidth / imgAspect;
             offsetX = x;
-            offsetY = y + (boxHeight - drawHeight) / 2;
+            // offsetY = y + (boxHeight - drawHeight) / 2;
           } else {
             // Image is taller than the box: fit height, pillarbox left/right
             drawHeight = boxHeight;
             drawWidth = boxHeight * imgAspect;
-            offsetX = x + (boxWidth - drawWidth) / 2;
+            // offsetX = x + (boxWidth - drawWidth) / 2;
             offsetY = y;
           }
 
           // Optional: fill background with white
           ctx.fillStyle = '#fff';
-          ctx.fillRect(x, y, boxWidth, boxHeight);
+          // ctx.fillRect(x, y, boxWidth, boxHeight);
 
           // Draw the image centered in the box
-          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+          // ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
           
           if (layout === 'grid') {
             ctx.restore();
@@ -341,7 +344,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
 
       // Download the canvas as image
       const link = document.createElement('a');
-      link.download = `photobooth-${Date.now()}.png`;
+      link.download = `Adelaide-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (error) {
@@ -457,7 +460,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         width: '200px',
         margin: '0 auto',
       };
-
       return (
         <div className="relative" style={portraitStyle}>
           <div className="relative">
@@ -498,8 +500,8 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
             </div>
           </div>
 
-          <div className="text-center mt-3 text-gray-600 text-xs">
-            PhotoBooth - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
+          <div className="text-center mt-3 text-gray-600 text-xs" style={{ marginBottom: '40px' }}>
+            Adelaide - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
           </div>
         </div>
       );
@@ -517,99 +519,138 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     };
 
     return (
-      <div className="relative" style={stripStyle}>
-        {layout === 'horizontal' && (
-          <>
-            <div 
-              className="absolute -right-1 top-0 bottom-0 w-3 bg-white"
-              style={{
-                clipPath: 'polygon(0 0, 100% 0, 85% 15%, 100% 30%, 85% 45%, 100% 60%, 85% 75%, 100% 90%, 85% 100%, 0 100%)',
-                boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
-              }}
-            />
-            <div 
-              className="absolute -right-2 top-2 bottom-2 w-1 bg-white opacity-60"
-              style={{
-                clipPath: 'polygon(0 0, 100% 0, 70% 25%, 100% 50%, 70% 75%, 100% 100%, 0 100%)'
-              }}
-            />
-            <div 
-              className="absolute inset-0 border border-white/20 pointer-events-none"
-              style={{ borderRadius: '4px' }}
-            />
-          </>
-        )}
-        <div className={
-          layout === 'grid' ? 'grid grid-cols-2 gap-4 p-4 relative' : 
-          layout === 'horizontal' ? `grid grid-cols-${photoCount} gap-0` : 
-          'space-y-1'
-        }>
-          {Array.from({ length: photoCount }).map((_, index) => {
-            // Calculate aspect ratio for each photo
-            const meta = photos[index]?.metadata || primaryPhoto?.metadata;
-            const aspectRatio = meta ? `${meta.width} / ${meta.height}` : '4 / 3';
-            return (
-              <div key={index} className="relative">
-                <div 
-                  className={`bg-black rounded-none ${
-                    layout === 'grid' ? 'h-32' :
-                    layout === 'horizontal' ? 'h-36' : ''
-                  }`}
-                  style={{
-                    height: layout === 'vertical' ? undefined : undefined,
-                    aspectRatio: layout === 'vertical' ? aspectRatio : undefined,
-                    border: layout === 'grid' ? '3px solid white' : layout === 'horizontal' ? '2px solid white' : '1px solid #e5e7eb',
-                    marginBottom: layout === 'vertical' && index < photoCount - 1 ? '10px' : '0',
-                    transform: layout === 'grid' ? `rotate(${getGridRotation(index)}deg) translate(${getGridOffset(index).x}px, ${getGridOffset(index).y}px)` : 'none',
-                    boxShadow: layout === 'grid' ? '0 6px 20px rgba(0,0,0,0.2)' : layout === 'horizontal' ? '0 2px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.1)' : 'none',
-                    transition: layout === 'grid' ? 'transform 0.3s ease' : layout === 'horizontal' ? 'all 0.3s ease' : 'none',
-                    backgroundColor: layout === 'grid' ? 'white' : 'black',
-                    padding: layout === 'grid' ? '8px' : '0',
-                    borderRight: layout === 'horizontal' && index < photoCount - 1 ? '2px solid white' : 'none',
-                    position: layout === 'horizontal' ? 'relative' : 'static'
-                  }}
-                >
-                  <img
-                    src={photos[index]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc}
-                    alt={`Photo ${index + 1}`}
-                    className="w-full h-full object-cover"
-                    style={getImageStyle()}
-                  />
-                  
-                  {stickers.map((sticker) => (
-                    <div
-                      key={`${sticker.id}-${index}`}
-                      className={`absolute cursor-move ${
-                        selectedSticker === sticker.id ? 'ring-2 ring-blue-500' : ''
-                      }`}
-                      style={{
-                        left: sticker.x,
-                        top: sticker.y,
-                        width: sticker.width,
-                        height: sticker.height,
-                        transform: `rotate(${sticker.rotation}deg)`,
-                        zIndex: sticker.zIndex,
-                      }}
-                      onClick={() => handleStickerClick(sticker.id)}
-                      onMouseDown={(e) => handleMouseDown(e, sticker.id)}
-                      onMouseMove={handleMouseMove}
-                      onMouseUp={handleMouseUp}
-                    >
-                      <img
-                        src={sticker.src}
-                        alt={sticker.name}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  ))}
+      <div className="flex flex-row items-start gap-8 max-w-5xl mx-auto">
+        {/* Photo strip card */}
+        <div className="rounded-lg shadow-3xl max-w-xl w-full p-6 pb-16 flex-1" style={{ background: stripColor, boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)' }}>
+          {layout === 'horizontal' && (
+            <>
+              <div 
+                className="absolute -right-1 top-0 bottom-0 w-3 bg-white"
+                style={{
+                  clipPath: 'polygon(0 0, 100% 0, 85% 15%, 100% 30%, 85% 45%, 100% 60%, 85% 75%, 100% 90%, 85% 100%, 0 100%)',
+                  boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
+                }}
+              />
+              <div 
+                className="absolute -right-2 top-2 bottom-2 w-1 bg-white opacity-60"
+                style={{
+                  clipPath: 'polygon(0 0, 100% 0, 70% 25%, 100% 50%, 70% 75%, 100% 100%, 0 100%)'
+                }}
+              />
+              <div 
+                className="absolute inset-0 border border-white/20 pointer-events-none"
+                style={{ borderRadius: '4px' }}
+              />
+            </>
+          )}
+          <div className={
+            layout === 'grid' ? 'grid grid-cols-2 gap-4 p-4 relative' : 
+            layout === 'horizontal' ? `grid grid-cols-${photoCount} gap-0` : 
+            'space-y-1'
+          }>
+            {Array.from({ length: photoCount }).map((_, index) => {
+              // Calculate aspect ratio for each photo
+              const meta = photos[index]?.metadata || primaryPhoto?.metadata;
+              const aspectRatio = meta ? `${meta.width} / ${meta.height}` : '4 / 3';
+              return (
+                <div key={index} className="relative">
+                  <div 
+                    className="rounded-none"
+                    style={{
+                      border: 'none',
+                      marginBottom: 0,
+                      backgroundColor: 'transparent',
+                      aspectRatio: layout === 'vertical' ? aspectRatio : undefined,
+                      boxShadow: layout === 'grid' ? '0 6px 20px rgba(0,0,0,0.2)' : layout === 'horizontal' ? '0 2px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.1)' : 'none',
+                      transition: layout === 'grid' ? 'transform 0.3s ease' : layout === 'horizontal' ? 'all 0.3s ease' : 'none',
+                      // backgroundColor: layout === 'grid' ? 'white' : 'black',
+                      padding: layout === 'grid' ? '8px' : '0',
+                      borderRight: layout === 'horizontal' && index < photoCount - 1 ? '2px solid white' : 'none',
+                      position: layout === 'horizontal' ? 'relative' : 'static'
+                    }}
+                  >
+                    <img
+                      src={photos[index]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc}
+                      alt={`Photo ${index + 1}`}
+                      className="w-full h-56 object-cover"
+                      style={getImageStyle()}
+                    />
+                    
+                    {stickers.map((sticker) => (
+                      <div
+                        key={`${sticker.id}-${index}`}
+                        className={`absolute cursor-move ${
+                          selectedSticker === sticker.id ? 'ring-2 ring-blue-500' : ''
+                        }`}
+                        style={{
+                          left: sticker.x,
+                          top: sticker.y,
+                          width: sticker.width,
+                          height: sticker.height,
+                          transform: `rotate(${sticker.rotation}deg)`,
+                          zIndex: sticker.zIndex,
+                        }}
+                        onClick={() => handleStickerClick(sticker.id)}
+                        onMouseDown={(e) => handleMouseDown(e, sticker.id)}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                      >
+                        <img
+                          src={sticker.src}
+                          alt={sticker.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        <div className="text-center mt-3 text-gray-600 text-xs">
-          PhotoBooth - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
+          <div style={{ height: '64px' }} /> {/* 64px of space */}
+          <div className="text-center text-gray-600 text-xs" style={{ marginTop: '100px' }}>
+            Adelaide - {new Date().toLocaleDateString()}, {new Date().toLocaleTimeString()}
+          </div>
+        </div>
+        {/* Action buttons and color selector in a column */}
+        <div className="flex flex-col gap-6 items-start ml-10 min-w-[220px]">
+          {/* Action buttons in a row */}
+          <div className="flex flex-row gap-4">
+            {onRetake && (
+              <Button label="Retake" onClick={onRetake} variant="secondary" />
+            )}
+            <Button label="Download" onClick={handleDownload} />
+            <Button label="Share on Facebook" onClick={() => onShare('facebook')} />
+            <Button label="Share on Twitter" onClick={() => onShare('twitter')} />
+            <Button label="Share on WhatsApp" onClick={() => onShare('whatsapp')} />
+          </div>
+          {/* Frame/strip color selector */}
+          <div className="mt-6 w-full">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Frame/Strip Color</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {['#ffffff', '#000000', '#ff69b4', '#4ade80', '#3b82f6', '#fde047', '#a78bfa', '#be123c'].map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setStripColor(color)}
+                  className="w-8 h-8 rounded-full border-2 border-gray-300"
+                  style={{
+                    backgroundColor: color,
+                    borderColor: stripColor === color ? '#f472b6' : '#d1d5db',
+                    boxShadow: stripColor === color ? '0 0 0 2px #f472b6' : undefined,
+                  }}
+                  aria-label={`Select frame color ${color}`}
+                />
+              ))}
+              <input
+                type="color"
+                value={stripColor}
+                onChange={e => setStripColor(e.target.value)}
+                className="w-8 h-8 rounded-full border-2 border-gray-300 ml-2"
+                aria-label="Custom frame color"
+              />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -629,7 +670,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         )}
       </div>
 
-      {/* Photo Info */}
+      {/* Photo Info
       <div className="text-center space-y-2">
         <div className="text-sm text-gray-600">
           Photos: {photos.length} captured
@@ -655,31 +696,13 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
           </div>
         )}
         {selectedFrame && (
-          <div className="text-sm text-purple-600">
-            Frame: {selectedFrame.name}
+          <div className="text-xl text-purple-500 font-semibold mt-4">
+            Frame: <span className="underline">{selectedFrame.name}</span>
           </div>
         )}
-      </div>
+      </div> */}
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2">
-        <Button 
-          label="Download" 
-          onClick={handleDownload}
-        />
-        <Button 
-          label="Share on Facebook" 
-          onClick={() => onShare('facebook')}
-        />
-        <Button 
-          label="Share on Twitter" 
-          onClick={() => onShare('twitter')}
-        />
-        <Button 
-          label="Share on WhatsApp" 
-          onClick={() => onShare('whatsapp')}
-        />
-      </div>
+
 
       {/* Hidden Canvas for Processing */}
       <canvas
