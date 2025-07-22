@@ -176,7 +176,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         const topMargin = 40;
         const bottomMargin = 360; // extra space for footer
         canvasWidth = 480;
-        canvasHeight = topMargin + (boxHeight * photoCount) + (spacing * (photoCount - 1)) + 250; // 80px bottom margin for extra padding
+        canvasHeight = topMargin + (boxHeight * photoCount) + ((photoCount - 1)) + 350; // 80px bottom margin for extra padding
       }
       
       canvas.width = canvasWidth;
@@ -191,15 +191,17 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         gradient.addColorStop(0, '#ffffff');
         gradient.addColorStop(1, '#f8f9fa');
         ctx.fillStyle = gradient;
+      } else if (layout === 'vertical') {
+        ctx.fillStyle = stripColor;
       } else {
         ctx.fillStyle = '#ffffff';
       }
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
       // Draw border
-      ctx.strokeStyle = layout === 'grid' ? '#e9ecef' : '#ffffff';
-      ctx.lineWidth = layout === 'grid' ? 1 : layout === 'horizontal' ? 3 : 2;
-      ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
+      // ctx.strokeStyle = layout === 'grid' ? '#e9ecef' : '#ffffff';
+      // ctx.lineWidth = layout === 'grid' ? 1 : layout === 'horizontal' ? 3 : 2;
+      // ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
 
       // Load and draw photos
       const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -224,7 +226,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
           if (layout === 'vertical') {
             const boxWidth = 420; // width of each 3:2 image
             const boxHeight = Math.round(boxWidth * 2 / 3); // 280px for 3:2
-            const spacing = 80;
+            const spacing = 35;
             const topMargin = 40;
             const x = (canvasWidth - boxWidth) / 2;
             const y = topMargin + i * (boxHeight + spacing);
@@ -352,7 +354,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [photos, primaryPhoto, selectedLayout, stickers, appliedFilters]);
+  }, [photos, primaryPhoto, selectedLayout, stickers, appliedFilters, stripColor]);
       
 
   // Handle sticker selection
@@ -546,7 +548,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
           <div className={
             layout === 'grid' ? 'grid grid-cols-2 gap-4 p-4 relative' : 
             layout === 'horizontal' ? `grid grid-cols-${photoCount} gap-0` : 
-            'space-y-1'
+            'space-y-5' // <-- increase this value for more spacing
           }>
             {Array.from({ length: photoCount }).map((_, index) => {
               // Calculate aspect ratio for each photo
@@ -616,14 +618,14 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         {/* Action buttons and color selector in a column */}
         <div className="flex flex-col gap-6 items-start ml-10 min-w-[220px]">
           {/* Action buttons in a row */}
-          <div className="flex flex-row gap-4">
+          <div className="flex flex-row gap-4 bg-white/80 rounded-xl shadow-md px-6 py-4 mb-4">
             {onRetake && (
               <Button label="Retake" onClick={onRetake} variant="secondary" />
             )}
-            <Button label="Download" onClick={handleDownload} />
-            <Button label="Share on Facebook" onClick={() => onShare('facebook')} />
-            <Button label="Share on Twitter" onClick={() => onShare('twitter')} />
-            <Button label="Share on WhatsApp" onClick={() => onShare('whatsapp')} />
+            <Button label="Download" onClick={handleDownload} className="transition-all hover:bg-blue-600 hover:text-white" />
+            <Button label="Share on Facebook" onClick={() => onShare('facebook')} className="transition-all hover:bg-blue-600 hover:text-white" />
+            <Button label="Share on Twitter" onClick={() => onShare('twitter')} className="transition-all hover:bg-blue-600 hover:text-white" />
+            <Button label="Share on WhatsApp" onClick={() => onShare('whatsapp')} className="transition-all hover:bg-blue-600 hover:text-white" />
           </div>
           {/* Frame/strip color selector */}
           <div className="mt-6 w-full">
