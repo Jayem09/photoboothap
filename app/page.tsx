@@ -10,6 +10,7 @@ import PhotoGallery from "../components/editing/PhotoGallery";
 import Button from "../components/ui/Button";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Modal from "../components/ui/Modal";
+import Head from 'next/head';
 
 type ViewMode = 'frame-selection' | 'camera' | 'editing' | 'gallery';
 
@@ -79,6 +80,10 @@ const HomePage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { addPhoto, updatePhoto, downloadPhoto, sharePhoto } = usePhotos();
+
+  const handleBack = () => {
+    setViewMode('frame-selection'); // or 'gallery', or whatever your previous page is
+  };
 
   // Handle layout selection
   const handleLayoutSelect = useCallback((layout: FrameLayout) => {
@@ -200,7 +205,7 @@ const HomePage: React.FC = () => {
     setAppliedFilters({ basic: [], advanced: {} });
     setStickers([]);
     setSelectedFrame(null);
-    setViewMode('frame-selection');
+    setViewMode('camera');
   }, []);
 
   // Handle new photo
@@ -209,82 +214,83 @@ const HomePage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-pink-50 to-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">📸</span>
+    <>
+      <Head>
+        <title>SnapWithAdelaide</title>
+      </Head>
+      <div className="min-h-screen bg-gradient-to-br from-white via-pink-50 to-white">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center space-x-3">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">Snap with Adelaide</h1>
+                  <p className="text-gray-600 text-sm">Capture & Create Memories</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Photo Booth</h1>
-                <p className="text-gray-600 text-sm">Capture & Create Memories</p>
-              </div>
-            </div>
-            
-            {/* Navigation */}
-            <nav className="flex space-x-2">
-              <button
-                onClick={() => setViewMode('frame-selection')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  viewMode === 'frame-selection'
-                    ? 'bg-pink-500 text-white shadow-lg'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                🖼️ Layouts
-              </button>
-              <button
-                onClick={() => setViewMode('camera')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  viewMode === 'camera'
-                    ? 'bg-pink-500 text-white shadow-lg'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-                disabled={!selectedLayout}
-              >
-                📷 Camera
-              </button>
-              <button
-                onClick={() => setViewMode('editing')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  viewMode === 'editing'
-                    ? 'bg-pink-500 text-white shadow-lg'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-                disabled={!currentPhoto}
-              >
-                ✨ Edit
-              </button>
-              <button
-                onClick={() => setViewMode('gallery')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  viewMode === 'gallery'
-                    ? 'bg-pink-500 text-white shadow-lg'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-              >
-                🖼️ Gallery
-              </button>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {isLoading && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
-            <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/30">
-              <LoadingSpinner />
+              
+              {/* Navigation */}
+              <nav className="flex space-x-2">
+                <button
+                  onClick={() => setViewMode('frame-selection')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    viewMode === 'frame-selection'
+                      ? 'bg-pink-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                  }`}
+                >
+                  🖼️ Layouts
+                </button>
+                <button
+                  onClick={() => setViewMode('camera')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    viewMode === 'camera'
+                      ? 'bg-pink-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                  }`}
+                  disabled={!selectedLayout}
+                >
+                  📷 Camera
+                </button>
+                <button
+                  onClick={() => setViewMode('editing')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    viewMode === 'editing'
+                      ? 'bg-pink-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                  }`}
+                  disabled={!currentPhoto}
+                >
+                  ✨ Edit
+                </button>
+                <button
+                  onClick={() => setViewMode('gallery')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    viewMode === 'gallery'
+                      ? 'bg-pink-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                  }`}
+                >
+                  🖼️ Gallery
+                </button>
+              </nav>
             </div>
           </div>
-        )}
+        </header>
 
-       {/* Frame Selection View */}
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-6 py-8">
+          {isLoading && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
+              <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/30">
+                <LoadingSpinner />
+              </div>
+            </div>
+          )}
+
+         {/* Frame Selection View */}
 {viewMode === 'frame-selection' && (
     <div className="flex justify-center items-center min-h-screen p-4">
     <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
@@ -344,7 +350,7 @@ const HomePage: React.FC = () => {
           <div className="space-y-8">
             {/* Hero Section */}
             <div className="text-center space-y-6">
-              <h2 className="text-5xl font-bold text-white mb-4">
+              <h2 className="text-5xl font-bold text-black mb-4">
                 Say Cheese! 📸
               </h2>
               <p className="text-gray-300 text-xl max-w-2xl mx-auto">
@@ -368,6 +374,7 @@ const HomePage: React.FC = () => {
                   audioEnabled={true}
                   multiShot={true}
                   multiShotCount={selectedLayout.photoCount}
+                  onBack={handleBack}
                 />
               </div>
             </div>
@@ -408,6 +415,8 @@ const HomePage: React.FC = () => {
                   onDownload={handleDownload}
                   onShare={handleShare}
                   selectedLayout={selectedLayout}
+                  onRetake={handleRetakePhoto}
+                  onBack={handleBack}
                 />
               </div>
             </div>
@@ -417,6 +426,7 @@ const HomePage: React.FC = () => {
         {/* Gallery View removed by user request */}
       </main>
     </div>
+    </>
   );
 };
 

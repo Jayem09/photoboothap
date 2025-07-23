@@ -11,6 +11,7 @@ interface CameraPreviewProps {
   audioEnabled?: boolean;
   multiShot?: boolean;
   multiShotCount?: number;
+  onBack?: () => void;
 }
 
 const CameraPreview: React.FC<CameraPreviewProps> = ({
@@ -20,6 +21,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   audioEnabled = false,
   multiShot = false,
   multiShotCount = 1,
+  onBack,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -119,7 +121,12 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+      // Mirror the canvas context horizontally so the capture matches the preview
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
 
       // Create a copy of the original image data
       const originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -604,195 +611,205 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   }
 
   return (
-    <div className="w-full max-w-6xl mx-auto">
-      {/* Layout Selection */}
-      <div className="text-center mb-6">
-        <div className="inline-block bg-pink-100 text-pink-800 px-4 py-2 rounded-full text-sm font-medium">
-          Layout: {multiShotCount} photo{multiShotCount !== 1 ? 's' : ''}
-        </div>
-      </div>
-
-      {/* Main Photo Booth Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Camera Feed - Left Side */}
-        <div className="lg:col-span-2">
-          <div
-            className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-96 lg:h-[500px]"
-          >
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-              style={{ transform: 'scaleX(-1)', ...getVideoFilterStyle() }}
-            />
-            <canvas
-              ref={canvasRef}
-              style={{ display: 'none' }}
-            />
-            
-            {/* Status indicator */}
-            {stream && (
-              <div className="absolute top-2 left-2 bg-green-500 bg-opacity-75 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                Camera Ready
-              </div>
-            )}
-            
-            {/* Countdown Overlay */}
-            {countdown !== null && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
-                <div className="bg-white rounded-lg p-8">
-                  <div className="text-green-600 text-8xl font-bold animate-pulse">
-                    {countdown}
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Capture Status */}
-            {isCapturing && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
-                <div className="bg-pink-100 rounded-lg px-4 py-2">
-                  <div className="text-pink-800 text-xl font-bold animate-pulse">Capturing...</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Camera Controls */}
-          <div className="mt-4 flex flex-col items-center space-y-4">
-            {!isCapturing && !isCapturingSession && stream && countdown === null && (
-              <Button 
-                label="📸 Start Photo Session" 
-                onClick={capturePhoto}
-                className="bg-pink-500 hover:bg-pink-600 text-white px-8 py-3 rounded-lg text-lg font-semibold"
-              />
-            )}
-
-            {/* Countdown Selection */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Select Countdown Time:</span>
-              <select 
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-                value={currentCountdownDuration}
-                onChange={(e) => {
-                  const newDuration = parseInt(e.target.value);
-                  setCurrentCountdownDuration(newDuration);
-                }}
-              >
-                <option value="3">3s</option>
-                <option value="5">5s</option>
-                <option value="10">10s</option>
-              </select>
-            </div>
-
-            {/* Capture Status */}
-            {isCapturingSession && (
-              <div className="bg-pink-100 text-pink-800 px-4 py-2 rounded-lg text-sm font-medium">
-                Capturing... ({capturedPhotos.length}/{multiShotCount})
-              </div>
-            )}
+    <div className="relative">
+      {onBack && (
+        <button
+          className="absolute top-4 left-4 z-20 bg-white/80 rounded-full px-4 py-2 shadow hover:bg-pink-100 transition"
+          onClick={onBack}
+        >
+          ← Back
+        </button>
+      )}
+      <div className="w-full max-w-6xl mx-auto">
+        {/* Layout Selection */}
+        <div className="text-center mb-6">
+          <div className="inline-block bg-pink-100 text-pink-800 px-4 py-2 rounded-full text-sm font-medium">
+            Layout: {multiShotCount} photo{multiShotCount !== 1 ? 's' : ''}
           </div>
         </div>
 
-        {/* Captured Photos Preview - Right Side */}
-        <div className="lg:col-span-1">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800">Captured Photos</h3>
-            
-            {/* Photo Preview Strip */}
-            <div className="space-y-3">
-              {capturedPhotos.map((photo, index) => (
-                <div
-                  key={photo.id}
-                  className="relative bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm"
-                >
-                  <img
-                    src={photo.originalSrc}
-                    alt={`Photo ${index + 1}`}
-                    className="w-full h-100 object-cover"
-                    style={getImageStyle(photo.filtersApplied)}
-                  />
-                  <div className="absolute top-2 right-2 bg-white bg-opacity-75 text-gray-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                    {index + 1}
-                  </div>
-                  {photo.filtersApplied && (photo.filtersApplied.basic.length > 0 || Object.keys(photo.filtersApplied.advanced).length > 0) && (
-                    <div className="absolute bottom-2 left-2 bg-pink-500 text-white text-xs px-2 py-1 rounded-full">
-                      🎨
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {/* Empty slots for remaining photos */}
-              {Array.from({ length: Math.max(0, multiShotCount - capturedPhotos.length) }).map((_, index) => (
-                <div
-                  key={`empty-${index}`}
-                  className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-32 flex items-center justify-center"
-                >
-                  <div className="text-gray-400 text-sm">
-                    Photo {capturedPhotos.length + index + 1}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Photo Count */}
-            {capturedPhotos.length > 0 && (
-              <div className="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded-lg text-center">
-                📷 {capturedPhotos.length}/{multiShotCount} photo{capturedPhotos.length !== 1 ? 's' : ''} captured
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Options */}
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">
-          Choose a filter for your photos!
-        </h3>
-        
-        {/* Selected Filter Indicator */}
-        {/* {selectedFilter !== 'No Filter' && (
-          <div className="text-center mb-4">
-            <div className="inline-block bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm font-medium">
-              🎨 Filter: {selectedFilter}
-            </div>
-          </div>
-        )} */}
-        
-        <div className="flex flex-wrap justify-center gap-2">
-          {['No Filter', 'B&W', 'Sepia', 'Vintage', 'Soft', 'Noir', 'Vivid', 'Warm', 'Cool'].map((filter) => (
-            <button
-              key={filter}
-              onClick={() => handleFilterSelect(filter)}
-              className={`border rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                selectedFilter === filter
-                  ? 'bg-pink-500 text-white border-pink-500 shadow-lg'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-pink-300'
-              }`}
+        {/* Main Photo Booth Interface */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Camera Feed - Left Side */}
+          <div className="lg:col-span-2">
+            <div
+              className="relative bg-gray-900 rounded-lg overflow-hidden w-full h-96 lg:h-[500px]"
             >
-              {filter}
-            </button>
-          ))}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)', ...getVideoFilterStyle() }}
+              />
+              <canvas
+                ref={canvasRef}
+                style={{ display: 'none' }}
+              />
+              
+              {/* Status indicator */}
+              {stream && (
+                <div className="absolute top-2 left-2 bg-green-500 bg-opacity-75 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                  Camera Ready
+                </div>
+              )}
+              
+              {/* Countdown Overlay */}
+              {countdown !== null && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
+                  <div className="bg-white rounded-lg p-8">
+                    <div className="text-green-600 text-8xl font-bold animate-pulse">
+                      {countdown}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Capture Status */}
+              {isCapturing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
+                  <div className="bg-pink-100 rounded-lg px-4 py-2">
+                    <div className="text-pink-800 text-xl font-bold animate-pulse">Capturing...</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Camera Controls */}
+            <div className="mt-4 flex flex-col items-center space-y-4">
+              {!isCapturing && !isCapturingSession && stream && countdown === null && (
+                <Button 
+                  label="📸 Start Photo Session" 
+                  onClick={capturePhoto}
+                  className="bg-pink-500 hover:bg-pink-600 text-white px-8 py-3 rounded-lg text-lg font-semibold"
+                />
+              )}
+
+              {/* Countdown Selection */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Select Countdown Time:</span>
+                <select 
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  value={currentCountdownDuration}
+                  onChange={(e) => {
+                    const newDuration = parseInt(e.target.value);
+                    setCurrentCountdownDuration(newDuration);
+                  }}
+                >
+                  <option value="3">3s</option>
+                  <option value="5">5s</option>
+                  <option value="10">10s</option>
+                </select>
+              </div>
+
+              {/* Capture Status */}
+              {isCapturingSession && (
+                <div className="bg-pink-100 text-pink-800 px-4 py-2 rounded-lg text-sm font-medium">
+                  Capturing... ({capturedPhotos.length}/{multiShotCount})
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Captured Photos Preview - Right Side */}
+          <div className="lg:col-span-1">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800">Captured Photos</h3>
+              
+              {/* Photo Preview Strip */}
+              <div className="space-y-3">
+                {capturedPhotos.map((photo, index) => (
+                  <div
+                    key={photo.id}
+                    className="relative bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm"
+                  >
+                    <img
+                      src={photo.originalSrc}
+                      alt={`Photo ${index + 1}`}
+                      className="w-full h-100 object-cover"
+                      style={getImageStyle(photo.filtersApplied)}
+                    />
+                    <div className="absolute top-2 right-2 bg-white bg-opacity-75 text-gray-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                      {index + 1}
+                    </div>
+                    {photo.filtersApplied && (photo.filtersApplied.basic.length > 0 || Object.keys(photo.filtersApplied.advanced).length > 0) && (
+                      <div className="absolute bottom-2 left-2 bg-pink-500 text-white text-xs px-2 py-1 rounded-full">
+                        🎨
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Empty slots for remaining photos */}
+                {Array.from({ length: Math.max(0, multiShotCount - capturedPhotos.length) }).map((_, index) => (
+                  <div
+                    key={`empty-${index}`}
+                    className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-32 flex items-center justify-center"
+                  >
+                    <div className="text-gray-400 text-sm">
+                      Photo {capturedPhotos.length + index + 1}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Photo Count */}
+              {capturedPhotos.length > 0 && (
+                <div className="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded-lg text-center">
+                  📷 {capturedPhotos.length}/{multiShotCount} photo{capturedPhotos.length !== 1 ? 's' : ''} captured
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        
-        {/* Filter Description */}
-        <div className="text-center mt-3">
-          <p className="text-sm text-gray-600">
-            {selectedFilter === 'No Filter' && 'Original photos without any effects'}
-            {selectedFilter === 'B&W' && 'Classic black and white photography'}
-            {selectedFilter === 'Sepia' && 'Vintage brown-tone effect'}
-            {selectedFilter === 'Vintage' && 'Old-school film look with warm tones'}
-            {selectedFilter === 'Soft' && 'Gentle, dreamy soft focus effect'}
-            {selectedFilter === 'Noir' && 'High contrast black and white'}
-            {selectedFilter === 'Vivid' && 'Bold, saturated colors'}
-            {selectedFilter === 'Warm' && 'Cozy warm color temperature'}
-            {selectedFilter === 'Cool' && 'Cool blue-tinted effect'}
-          </p>
+
+        {/* Filter Options */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">
+            Choose a filter for your photos!
+          </h3>
+          
+          {/* Selected Filter Indicator */}
+          {/* {selectedFilter !== 'No Filter' && (
+            <div className="text-center mb-4">
+              <div className="inline-block bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm font-medium">
+                🎨 Filter: {selectedFilter}
+              </div>
+            </div>
+          )} */}
+          
+          <div className="flex flex-wrap justify-center gap-2">
+            {['No Filter', 'B&W', 'Sepia', 'Vintage', 'Soft', 'Noir', 'Vivid', 'Warm', 'Cool'].map((filter) => (
+              <button
+                key={filter}
+                onClick={() => handleFilterSelect(filter)}
+                className={`border rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedFilter === filter
+                    ? 'bg-pink-500 text-white border-pink-500 shadow-lg'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-pink-300'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+          
+          {/* Filter Description */}
+          <div className="text-center mt-3">
+            <p className="text-sm text-gray-600">
+              {selectedFilter === 'No Filter' && 'Original photos without any effects'}
+              {selectedFilter === 'B&W' && 'Classic black and white photography'}
+              {selectedFilter === 'Sepia' && 'Vintage brown-tone effect'}
+              {selectedFilter === 'Vintage' && 'Old-school film look with warm tones'}
+              {selectedFilter === 'Soft' && 'Gentle, dreamy soft focus effect'}
+              {selectedFilter === 'Noir' && 'High contrast black and white'}
+              {selectedFilter === 'Vivid' && 'Bold, saturated colors'}
+              {selectedFilter === 'Warm' && 'Cozy warm color temperature'}
+              {selectedFilter === 'Cool' && 'Cool blue-tinted effect'}
+            </p>
+          </div>
         </div>
       </div>
     </div>
