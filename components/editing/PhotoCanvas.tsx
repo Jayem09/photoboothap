@@ -61,7 +61,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   const primaryPhoto = photos[0];
 
   // Use the correct variable for your photo URL/data
-  const photoUrl = processedImageSrc || (Array.isArray(photo) ? photo[0]?.originalSrc : (photo as any)?.originalSrc);
+  const photoUrl = processedImageSrc || (Array.isArray(photo) ? photo[0]?.originalSrc : (photo as Photo)?.originalSrc);
 
   // Function to get dynamic rotation for grid layout
   const getGridRotation = (index: number) => {
@@ -324,7 +324,7 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
       const sticker = stickers.find(s => s.id === selectedSticker);
       if (!sticker) return;
 
-      let updatedSticker = { ...sticker };
+      const updatedSticker = { ...sticker };
 
       switch (e.key) {
         case 'ArrowLeft':
@@ -687,40 +687,6 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
           </div>
         )}
       </div>
-
-      {/* Photo Info
-      <div className="text-center space-y-2">
-        <div className="text-sm text-gray-600">
-          Photos: {photos.length} captured
-        </div>
-        {primaryPhoto?.metadata && (
-          <>
-            <div className="text-sm text-gray-600">
-              Size: {primaryPhoto.metadata.width} × {primaryPhoto.metadata.height}
-            </div>
-            <div className="text-sm text-gray-600">
-              File size: {(primaryPhoto.metadata.fileSize / 1024).toFixed(1)} KB
-            </div>
-          </>
-        )}
-        {appliedFilters.basic.length > 0 && (
-          <div className="text-sm text-blue-600">
-            Filters: {appliedFilters.basic.join(', ')}
-          </div>
-        )}
-        {stickers.length > 0 && (
-          <div className="text-sm text-green-600">
-            Stickers: {stickers.length}
-          </div>
-        )}
-        {selectedFrame && (
-          <div className="text-xl text-purple-500 font-semibold mt-4">
-            Frame: <span className="underline">{selectedFrame.name}</span>
-          </div>
-        )}
-      </div> */}
-
-
 
       {/* Preview Canvas (if you use it for display, keep as is) */}
       <canvas
