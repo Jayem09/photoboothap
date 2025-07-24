@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Photo, PhotoSession, SocialShareConfig } from '../types/photo';
 import { downloadImage, shareToSocialMedia } from '../lib/image-processing';
+import { set, get, del } from 'idb-keyval';
 
 interface UsePhotosOptions {
   sessionId?: string;
+  userId?: string;
   enableLocalStorage?: boolean;
   enableCloudStorage?: boolean;
 }
@@ -23,36 +25,55 @@ interface UsePhotosReturn {
 }
 
 export const usePhotos = (options: UsePhotosOptions = {}): UsePhotosReturn => {
-  const { sessionId, enableLocalStorage = true, enableCloudStorage = false } = options;
+  const { sessionId, userId, enableLocalStorage = true, enableCloudStorage = false } = options;
   
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [currentSession, setCurrentSession] = useState<PhotoSession | null>(null);
 
-  // Load photos from localStorage on mount
+  // Helper to get the storage key
+  const getStorageKey = () => {
+    if (userId && sessionId) return `photobooth-user-${userId}-session-${sessionId}`;
+    if (sessionId) return `photobooth-session-${sessionId}`;
+    return 'photobooth-session-default';
+  };
+ 
+  // Debug: log the storage key on mount
   useEffect(() => {
-    if (enableLocalStorage && sessionId) {
-      const savedPhotos = localStorage.getItem(`photobooth-session-${sessionId}`);
-      if (savedPhotos) {
-        try {
-          const parsedPhotos = JSON.parse(savedPhotos);
-          setPhotos(parsedPhotos);
-        } catch (error) {
-          console.error('Failed to load saved photos:', error);
-        }
-      }
-    }
-  }, [sessionId, enableLocalStorage]);
+    console.log('[usePhotos] Storage key:', getStorageKey());
+  }, [sessionId, userId]);
 
-  // Save photos to localStorage when photos change
+  // Load photos from IndexedDB on mount
   useEffect(() => {
-    if (enableLocalStorage && sessionId && photos.length > 0) {
-      localStorage.setItem(`photobooth-session-${sessionId}`, JSON.stringify(photos));
+    if (sessionId || userId) {
+      get(getStorageKey()).then((savedPhotos) => {
+        if (savedPhotos) {
+          try {
+            setPhotos(savedPhotos);
+          } catch (error) {
+            console.error('Failed to load saved photos from IndexedDB:', error);
+          }
+        }
+      });
     }
-  }, [photos, sessionId, enableLocalStorage]);
+  }, [sessionId, userId]);
+
+  // Save photos to IndexedDB when photos change
+  useEffect(() => {
+    if ((sessionId || userId) && photos.length > 0) {
+      set(getStorageKey(), photos).catch((error) => {
+        console.error('Failed to save photos to IndexedDB:', error);
+      });
+    }
+  }, [photos, sessionId, userId]);
 
   // Add photo to session
   const addPhoto = useCallback((photo: Photo) => {
-    setPhotos(prev => [...prev, photo]);
+    console.log('[usePhotos] addPhoto called with:', photo);
+    setPhotos(prev => {
+      const updated = [...prev, photo];
+      console.log('[usePhotos] New photos array:', updated);
+      return updated;
+    });
     
     // Update current session
     setCurrentSession(prev => {
@@ -73,7 +94,7 @@ export const usePhotos = (options: UsePhotosOptions = {}): UsePhotosReturn => {
         },
       };
     });
-  }, [sessionId]);
+  }, [sessionId, userId]);
 
   // Update photo
   const updatePhoto = useCallback((photoId: string, updates: Partial<Photo>) => {
@@ -118,10 +139,12 @@ export const usePhotos = (options: UsePhotosOptions = {}): UsePhotosReturn => {
     setPhotos([]);
     setCurrentSession(null);
     
-    if (enableLocalStorage && sessionId) {
-      localStorage.removeItem(`photobooth-session-${sessionId}`);
+    if (sessionId || userId) {
+      del(getStorageKey()).catch((error) => {
+        console.error('Failed to clear photos from IndexedDB:', error);
+      });
     }
-  }, [sessionId, enableLocalStorage]);
+  }, [sessionId, userId]);
 
   // Download photo
   const downloadPhoto = useCallback((photo: Photo) => {

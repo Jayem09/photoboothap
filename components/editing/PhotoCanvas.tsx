@@ -24,6 +24,9 @@ interface PhotoCanvasProps {
   onShare: (platform: string) => void;
   onRetake?: () => void;
   onBack?: () => void;
+  addPhoto?: (photo: Photo) => void;
+  sessionId?: string;
+  userId?: string;
 }
 
 const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
@@ -37,8 +40,12 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   onShare,
   onRetake,
   onBack,
+  addPhoto,
+  sessionId,
+  userId,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null); // for preview only
+  const exportCanvasRef = useRef<HTMLCanvasElement>(null); // for saving/exporting only
   const previewRef = useRef<HTMLDivElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedImageSrc, setProcessedImageSrc] = useState<string>('');
@@ -46,10 +53,15 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [stripColor, setStripColor] = useState<string>('#ffffff'); // default to white
+  const [saveStatus, setSaveStatus] = useState<string>("");
+  const [saveDisabled, setSaveDisabled] = useState(false);
 
   // Convert photo to array for consistent handling
   const photos = Array.isArray(photo) ? photo : [photo];
   const primaryPhoto = photos[0];
+
+  // Use the correct variable for your photo URL/data
+  const photoUrl = processedImageSrc || (Array.isArray(photo) ? photo[0]?.originalSrc : (photo as any)?.originalSrc);
 
   // Function to get dynamic rotation for grid layout
   const getGridRotation = (index: number) => {
@@ -132,232 +144,139 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     return { filter: filter.trim() || 'none' };
   };
 
-  /**
-   * Downloads the current photo strip as an image.
-   *
-   * This function draws the photo strip (with the selected layout, aspect ratio, and stickers)
-   * onto a hidden canvas, preserving the original aspect ratio of each photo. It then
-   * triggers a download of the resulting image as a PNG file. The function handles
-   * different layouts (vertical, horizontal, grid) and ensures the preview matches the
-   * downloaded image as closely as possible.
-   */
-  const handleDownload = useCallback(async () => {
-    if (!previewRef.current) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      // Use html2canvas library (you'll need to install it)
-      // For now, we'll use a different approach with canvas
-      
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const photoCount = selectedLayout?.photoCount || 3;
-      const layout = selectedLayout?.layout || 'vertical';
-      
-      // Set canvas dimensions based on layout to match preview exactly
-      let canvasWidth, canvasHeight;
-      
-      if (photoCount === 1) {
-        canvasWidth = 200;
-        canvasHeight = 100;
-      } else if (layout === 'horizontal') {
-        canvasWidth = 420;
-        canvasHeight = 200;
-      } else if (layout === 'grid') {
-        canvasWidth = 320;
-        canvasHeight = 320;
-      } else { // vertical - square crop, bigger images, 30px spacing
-        const boxWidth = 420; // width of each 16:9 image
-        const boxHeight = Math.round(boxWidth * 9 / 13); // 236px for 16:9
-        // const spacing = 1000;
-        const topMargin = 40;
-        const bottomMargin = 360; // extra space for footer
-        canvasWidth = 480;
-        canvasHeight = topMargin + (boxHeight * photoCount) + ((photoCount - 1)) + 350; // 80px bottom margin for extra padding
-      }
-      
-      canvas.width = canvasWidth;
-      canvas.height = canvasHeight;
-
-      // Create background
-      if (layout === 'grid') {
-        ctx.fillStyle = '#f8f9fa';
-      } else if (layout === 'horizontal') {
-        // Create gradient background
-        const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
-        gradient.addColorStop(0, '#ffffff');
-        gradient.addColorStop(1, '#f8f9fa');
-        ctx.fillStyle = gradient;
-      } else if (layout === 'vertical') {
-        ctx.fillStyle = stripColor;
-      } else {
-        ctx.fillStyle = '#ffffff';
-      }
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-      // Draw border
-      // ctx.strokeStyle = layout === 'grid' ? '#e9ecef' : '#ffffff';
-      // ctx.lineWidth = layout === 'grid' ? 1 : layout === 'horizontal' ? 3 : 2;
-      // ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
-
-      // Load and draw photos
-      const loadImage = (src: string): Promise<HTMLImageElement> => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = reject;
-          img.src = src;
-        });
-      };
-
-      for (let i = 0; i < photoCount; i++) {
-        const photoSrc = photos[i]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc;
-        if (!photoSrc) continue;
-
-        try {
-          const img = await loadImage(photoSrc);
-          
-          let x, y, width, height;
-          
-          if (layout === 'vertical') {
-            const boxWidth = 420; // width of each 3:2 image
-            const boxHeight = Math.round(boxWidth * 2 / 3); // 280px for 3:2
-            const spacing = 17;
-            const topMargin = 40;
-            const x = (canvasWidth - boxWidth) / 2;
-            const y = topMargin + i * (boxHeight + spacing);
-
-            // Crop to 3:2
-            const targetAspect = 3 / 2;
-            const imgAspect = img.width / img.height;
-            let sx, sy, sWidth, sHeight;
-            if (imgAspect > targetAspect) {
-              // Image is wider than 3:2, crop sides
-              sHeight = img.height;
-              sWidth = img.height * targetAspect;
-              sx = (img.width - sWidth) / 2;
-              sy = 0;
-            } else {
-              // Image is taller than 3:2, crop top/bottom
-              sWidth = img.width;
-              sHeight = img.width / targetAspect;
-              sx = 0;
-              sy = (img.height - sHeight) / 2;
-            }
-
-            // Fill background with white
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(x, y, boxWidth, boxHeight);
-
-            // Draw the cropped 3:2 image centered in the box
-            ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, boxWidth, boxHeight);
-          } else if (layout === 'grid') {
-            const col = i % 2;
-            const row = Math.floor(i / 2);
-            const x = 16 + col * 160;
-            const y = 16 + row * 160;
-            const width = 128;
-            const height = 128;
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(x, y, width, height);
-            ctx.drawImage(img, x, y, width, height);
-          } else if (layout === 'horizontal') {
-            const photoWidth = (canvasWidth - 16) / photoCount;
-            const x = 8 + (i * photoWidth);
-            const y = 8;
-            const width = photoWidth - 4;
-            const height = canvasHeight - 40;
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(x, y, width, height);
-            ctx.drawImage(img, x, y, width, height);
-          } else if (photoCount === 1) {
-            // Single photo: portrait style
-            const x = 12;
-            const y = 12;
-            const width = canvasWidth - 24;
-            const height = 400;
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(x, y, width, height);
-            ctx.drawImage(img, x, y, width, height);
-          }
-
-          // Draw photo
-          const boxWidth = 400;
-          const boxHeight = 300;
-          const imgAspect = img.width / img.height;
-          const boxAspect = boxWidth / boxHeight;
-
-          let drawWidth, drawHeight, offsetX, offsetY;
-
-          if (imgAspect > boxAspect) {
-            // Image is wider than the box: fit width, letterbox top/bottom
-            drawWidth = boxWidth;
-            drawHeight = boxWidth / imgAspect;
-            offsetX = x;
-            // offsetY = y + (boxHeight - drawHeight) / 2;
-          } else {
-            // Image is taller than the box: fit height, pillarbox left/right
-            drawHeight = boxHeight;
-            drawWidth = boxHeight * imgAspect;
-            // offsetX = x + (boxWidth - drawWidth) / 2;
-            offsetY = y;
-          }
-
-          // Optional: fill background with white
-          ctx.fillStyle = '#fff';
-          // ctx.fillRect(x, y, boxWidth, boxHeight);
-
-          // Draw the image centered in the box
-          // ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-          
-          if (layout === 'grid') {
-            ctx.restore();
-          }
-          
-        } catch (error) {
-          console.error('Error loading image:', error);
-        }
-      }
-
-      // Draw stickers
-      for (const sticker of stickers) {
-        try {
-          const stickerImg = await loadImage(sticker.src);
-          ctx.save();
-          ctx.translate(sticker.x + sticker.width/2, sticker.y + sticker.height/2);
-          ctx.rotate((sticker.rotation * Math.PI) / 180);
-          ctx.drawImage(stickerImg, -sticker.width/2, -sticker.height/2, sticker.width, sticker.height);
-          ctx.restore();
-        } catch (error) {
-          console.error('Error loading sticker:', error);
-        }
-      }
-
-      // Draw footer text with proper positioning
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '17px Arial';  // Larger font for footer
-      ctx.textAlign = 'center';
-      const footerText = `Adelaide - ${new Date().toLocaleDateString()}, ${new Date().toLocaleTimeString()}`;
-      ctx.fillText(footerText, canvasWidth / 2, canvasHeight - 73);  // Adjust position
-
-      // Download the canvas as image
-      const link = document.createElement('a');
-      link.download = `Adelaide-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch (error) {
-      console.error('Error downloading image:', error);
-    } finally {
-      setIsProcessing(false);
+  // Draw the photo strip to the hidden export canvas (for download/save)
+  const drawStripToCanvas = useCallback(async () => {
+    const canvas = exportCanvasRef.current;
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const photoCount = selectedLayout?.photoCount || 3;
+    const layout = selectedLayout?.layout || 'vertical';
+    let canvasWidth, canvasHeight;
+    if (photoCount === 1) {
+      canvasWidth = 200;
+      canvasHeight = 100;
+    } else if (layout === 'horizontal') {
+      canvasWidth = 420;
+      canvasHeight = 200;
+    } else if (layout === 'grid') {
+      canvasWidth = 320;
+      canvasHeight = 320;
+    } else {
+      const boxWidth = 420;
+      const boxHeight = Math.round(boxWidth * 9 / 13);
+      const topMargin = 40;
+      canvasWidth = 480;
+      canvasHeight = topMargin + (boxHeight * photoCount) + ((photoCount - 1)) + 350;
     }
-  }, [photos, primaryPhoto, selectedLayout, stickers, appliedFilters, stripColor]);
-      
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    if (layout === 'grid') {
+      ctx.fillStyle = '#f8f9fa';
+    } else if (layout === 'horizontal') {
+      const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+      gradient.addColorStop(0, '#ffffff');
+      gradient.addColorStop(1, '#f8f9fa');
+      ctx.fillStyle = gradient;
+    } else if (layout === 'vertical') {
+      ctx.fillStyle = stripColor;
+    } else {
+      ctx.fillStyle = '#ffffff';
+    }
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    const loadImage = (src: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    };
+    for (let i = 0; i < photoCount; i++) {
+      // Always use the original, full-res image as the source
+      const photoSrc = Array.isArray(photo)
+        ? (photo[i]?.originalSrc || photo[0]?.originalSrc || primaryPhoto?.originalSrc)
+        : primaryPhoto?.originalSrc;
+      if (!photoSrc) continue;
+      try {
+        const img = await loadImage(photoSrc);
+        let x, y, width, height;
+        if (layout === 'vertical') {
+          const boxWidth = 420;
+          const boxHeight = Math.round(boxWidth * 2 / 3);
+          const spacing = 17;
+          const topMargin = 40;
+          x = (canvasWidth - boxWidth) / 2;
+          y = topMargin + i * (boxHeight + spacing);
+          const targetAspect = 3 / 2;
+          const imgAspect = img.width / img.height;
+          let sx, sy, sWidth, sHeight;
+          if (imgAspect > targetAspect) {
+            sHeight = img.height;
+            sWidth = img.height * targetAspect;
+            sx = (img.width - sWidth) / 2;
+            sy = 0;
+          } else {
+            sWidth = img.width;
+            sHeight = img.width / targetAspect;
+            sx = 0;
+            sy = (img.height - sHeight) / 2;
+          }
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x, y, boxWidth, boxHeight);
+          ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, boxWidth, boxHeight);
+        } else if (layout === 'grid') {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          x = 16 + col * 160;
+          y = 16 + row * 160;
+          width = 128;
+          height = 128;
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x, y, width, height);
+          ctx.drawImage(img, x, y, width, height);
+        } else if (layout === 'horizontal') {
+          const photoWidth = (canvasWidth - 16) / photoCount;
+          x = 8 + (i * photoWidth);
+          y = 8;
+          width = photoWidth - 4;
+          height = canvasHeight - 40;
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x, y, width, height);
+          ctx.drawImage(img, x, y, width, height);
+        } else if (photoCount === 1) {
+          x = 12;
+          y = 12;
+          width = canvasWidth - 24;
+          height = 400;
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x, y, width, height);
+          ctx.drawImage(img, x, y, width, height);
+        }
+      } catch (error) {
+        console.error('Error loading image:', error);
+      }
+    }
+    for (const sticker of stickers) {
+      try {
+        const stickerImg = await loadImage(sticker.src);
+        ctx.save();
+        ctx.translate(sticker.x + sticker.width/2, sticker.y + sticker.height/2);
+        ctx.rotate((sticker.rotation * Math.PI) / 180);
+        ctx.drawImage(stickerImg, -sticker.width/2, -sticker.height/2, sticker.width, sticker.height);
+        ctx.restore();
+      } catch (error) {
+        console.error('Error loading sticker:', error);
+      }
+    }
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '17px Arial';
+    ctx.textAlign = 'center';
+    const footerText = `Adelaide - ${new Date().toLocaleDateString()}, ${new Date().toLocaleTimeString()}`;
+    ctx.fillText(footerText, canvasWidth / 2, canvasHeight - 73);
+    return canvas;
+  }, [photo, primaryPhoto, selectedLayout, stickers, appliedFilters, stripColor]);
 
   // Handle sticker selection
   const handleStickerClick = useCallback((stickerId: string) => {
@@ -439,6 +358,28 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedSticker, stickers, onPhotoUpdate]);
+
+  // Use drawStripToCanvas before download
+  const handleDownload = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      const canvas = await drawStripToCanvas();
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `Adelaide-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error('Error downloading image:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [drawStripToCanvas]);
+
+  // Re-enable save when retake or edit
+  useEffect(() => {
+    setSaveDisabled(false);
+  }, [primaryPhoto, appliedFilters, stickers, selectedFrame, selectedLayout]);
 
   if (!primaryPhoto?.originalSrc) {
     return (
@@ -625,15 +566,70 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
             </div>
           </div>
           {/* Action buttons and color selector in a column */}
-          <div className="flex flex-col gap-6 items-start ml-10 min-w-[220px]">
-            {/* Action buttons in a row */}
-            <div className="flex flex-row gap-4 bg-white/80 rounded-xl shadow-md px-6 py-4 mb-4">
-              <Button label="Download" onClick={handleDownload} className="transition-all hover:bg-blue-600 hover:text-white" />
+          <div className="flex flex-col gap-4 items-start ml-10 min-w-[220px]">
+            {/* Action buttons in a vertical stack */}
+            <div className="flex flex-col gap-3 w-full bg-white/80 rounded-xl shadow-md px-6 py-6 mb-4">
+              <Button label="Download" onClick={handleDownload} className="w-full transition-all hover:bg-blue-600 hover:text-white" />
               {onRetake && (
-                <Button label="Retake" onClick={onRetake} variant="secondary" className="transition-all hover:bg-pink-600 hover:text-white" />
+                <Button label="Retake" onClick={onRetake} variant="secondary" className="w-full transition-all hover:bg-pink-600 hover:text-white" />
               )}
-              <Button label="Share on Twitter" onClick={() => onShare('twitter')} className="transition-all hover:bg-blue-600 hover:text-white" />
-              <Button label="Share on WhatsApp" onClick={() => onShare('whatsapp')} className="transition-all hover:bg-blue-600 hover:text-white" />
+              <button
+                className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-semibold transition-all"
+                onClick={async () => {
+                  setSaveStatus("Saving...");
+                  setSaveDisabled(true);
+                  const canvas = await drawStripToCanvas();
+                  let finalImageUrl = photoUrl;
+                  if (canvas) {
+                    finalImageUrl = canvas.toDataURL('image/png');
+                  }
+                  // Create a single photo object for the composited strip
+                  const stripPhoto = {
+                    id: crypto.randomUUID(),
+                    sessionId: sessionId || '',
+                    userId: userId || '',
+                    filename: `strip-${Date.now()}.png`,
+                    originalSrc: finalImageUrl,
+                    processedSrc: finalImageUrl,
+                    imageUrl: finalImageUrl,
+                    filtersApplied: { basic: [], advanced: {} },
+                    stickers: [],
+                    size: 'large' as const,
+                    createdAt: new Date(),
+                    isDownloaded: false,
+                    isShared: false,
+                    metadata: {
+                      width: canvas ? canvas.width : 0,
+                      height: canvas ? canvas.height : 0,
+                      fileSize: finalImageUrl.length * 0.75,
+                      format: 'png' as const,
+                    },
+                  };
+                  const res = await fetch("/api/photos", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(stripPhoto),
+                    credentials: 'include',
+                  });
+                  if (res.ok) {
+                    setSaveStatus("Saved to gallery!");
+                    if (addPhoto) {
+                      addPhoto(stripPhoto);
+                    }
+                  } else {
+                    const data = await res.json().catch(() => ({}));
+                    setSaveStatus("Failed to save: " + (data.error || res.statusText));
+                    setSaveDisabled(false);
+                    console.error("Save error:", data);
+                  }
+                }}
+                disabled={saveDisabled}
+              >
+                Save to Gallery
+              </button>
+              {saveStatus && <div className="text-sm mt-2 w-full text-center">{saveStatus}</div>}
+              <Button label="Share on Twitter" onClick={() => onShare('twitter')} className="w-full transition-all hover:bg-blue-600 hover:text-white" />
+              <Button label="Share on WhatsApp" onClick={() => onShare('whatsapp')} className="w-full transition-all hover:bg-blue-600 hover:text-white" />
             </div>
             {/* Frame/strip color selector */}
             <div className="mt-6 w-full">
@@ -670,9 +666,20 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   return (
     <div className="flex flex-col items-center space-y-6">
       {/* Photo Strip Display */}
-      <div className="relative" ref={previewRef}>
+      <div
+        className="relative flex items-center justify-center"
+        ref={previewRef}
+        style={{
+          maxWidth: 'auto',
+          background: '#fff',
+          borderRadius: '18px',
+          boxShadow: '0 8px 32px 0 rgba(31,38,135,0.12)',
+          border: '2px solid #f3f4f6',
+          overflow: 'hidden',
+          padding: '16px 0',
+        }}
+      >
         {createPhotoStrip()}
-        
         {/* Processing Overlay */}
         {isProcessing && (
           <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
@@ -715,9 +722,14 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
 
 
 
-      {/* Hidden Canvas for Processing */}
+      {/* Preview Canvas (if you use it for display, keep as is) */}
       <canvas
         ref={canvasRef}
+        style={{ display: 'none' }}
+      />
+      {/* Export/Save Canvas (never shown) */}
+      <canvas
+        ref={exportCanvasRef}
         style={{ display: 'none' }}
       />
 

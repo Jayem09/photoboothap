@@ -89,6 +89,7 @@ export const useCamera = (options: UseCameraOptions = {}): UseCameraReturn => {
         filename: generateFilename(),
         originalSrc: imageSrc,
         processedSrc: imageSrc, // For now, use original as processed
+        imageUrl: imageSrc, // Use imageUrl instead of url
         filtersApplied: { basic: [], advanced: {} },
         stickers: [],
         size: currentPhotoSize.name,

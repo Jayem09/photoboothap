@@ -26,6 +26,7 @@ export interface Photo {
   filename: string;
   originalSrc: string;
   processedSrc?: string;
+  imageUrl: string;
   filtersApplied: AppliedFilters;
   stickers: Sticker[];
   frameId?: string;

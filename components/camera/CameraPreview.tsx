@@ -11,6 +11,7 @@ interface CameraPreviewProps {
   audioEnabled?: boolean;
   multiShot?: boolean;
   multiShotCount?: number;
+  sessionId?: string;
   onBack?: () => void;
 }
 
@@ -21,6 +22,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   audioEnabled = false,
   multiShot = false,
   multiShotCount = 1,
+  sessionId,
   onBack,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -142,7 +144,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
 
       const photo = {
         id: Date.now().toString(),
-        sessionId: `session-${Date.now()}`,
+        sessionId: sessionId || `session-${Date.now()}`,
         filename: `photo-${Date.now()}.jpg`,
         originalSrc: canvas.toDataURL('image/jpeg', 0.9),
         processedSrc: canvas.toDataURL('image/jpeg', 0.9),

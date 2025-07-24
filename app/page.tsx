@@ -11,6 +11,8 @@ import Button from "../components/ui/Button";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Modal from "../components/ui/Modal";
 import Head from 'next/head';
+import { signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 type ViewMode = 'frame-selection' | 'camera' | 'editing' | 'gallery';
 
@@ -69,6 +71,20 @@ const FRAME_LAYOUTS: FrameLayout[] = [
 ];
 
 const HomePage: React.FC = () => {
+  const { data: session } = useSession();
+  const userId = session?.user?.email ?? undefined;
+  // Generate or retrieve a persistent sessionId for the session
+  const [sessionId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      let id = localStorage.getItem('photobooth-session-id');
+      if (!id) {
+        id = `session-${Date.now()}`;
+        localStorage.setItem('photobooth-session-id', id);
+      }
+      return id;
+    }
+    return '';
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('frame-selection');
   const [selectedLayout, setSelectedLayout] = useState<FrameLayout | null>(null);
   const [currentPhoto, setCurrentPhoto] = useState<Photo | Photo[] | null>(null);
@@ -79,7 +95,7 @@ const HomePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const { addPhoto, updatePhoto, downloadPhoto, sharePhoto } = usePhotos();
+  const { addPhoto, updatePhoto, downloadPhoto, sharePhoto } = usePhotos({ sessionId, userId });
 
   const handleBack = () => {
     setViewMode('frame-selection'); // or 'gallery', or whatever your previous page is
@@ -97,16 +113,10 @@ const HomePage: React.FC = () => {
   const handlePhotoCaptured = useCallback((photos: Photo | Photo[]) => {
     console.log('Photos captured:', photos);
     
-    if (Array.isArray(photos)) {
-      photos.forEach(photo => addPhoto(photo));
-      setCurrentPhoto(photos); // Store all photos for photo strips
-      setViewMode('editing');
-    } else {
-      setCurrentPhoto(photos);
-      addPhoto(photos);
-      setViewMode('editing');
-    }
-  }, [addPhoto]);
+    // Only set currentPhoto for editing, do not add raw photos to gallery
+    setCurrentPhoto(photos);
+    setViewMode('editing');
+  }, []);
 
   // Handle photo update
   const handlePhotoUpdate = useCallback((updates: Partial<Photo>) => {
@@ -230,52 +240,59 @@ const HomePage: React.FC = () => {
                   <p className="text-gray-600 text-sm">Capture & Create Memories</p>
                 </div>
               </div>
-              
-              {/* Navigation */}
-              <nav className="flex space-x-2">
+              {/* Navigation and Logout */}
+              <div className="flex items-center space-x-4">
+                <nav className="flex space-x-2">
+                  <button
+                    onClick={() => setViewMode('frame-selection')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      viewMode === 'frame-selection'
+                        ? 'bg-pink-500 text-white shadow-lg'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    }`}
+                  >
+                    🖼️ Layouts
+                  </button>
+                  <button
+                    onClick={() => setViewMode('camera')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      viewMode === 'camera'
+                        ? 'bg-pink-500 text-white shadow-lg'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    }`}
+                    disabled={!selectedLayout}
+                  >
+                    📷 Camera
+                  </button>
+                  <button
+                    onClick={() => setViewMode('editing')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      viewMode === 'editing'
+                        ? 'bg-pink-500 text-white shadow-lg'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    }`}
+                    disabled={!currentPhoto}
+                  >
+                    ✨ Edit
+                  </button>
+                  <button
+                    onClick={() => setViewMode('gallery')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      viewMode === 'gallery'
+                        ? 'bg-pink-500 text-white shadow-lg'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    }`}
+                  >
+                    🖼️ Gallery
+                  </button>
+                </nav>
                 <button
-                  onClick={() => setViewMode('frame-selection')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    viewMode === 'frame-selection'
-                      ? 'bg-pink-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                  }`}
+                  onClick={() => signOut()}
+                  className="ml-4 px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all"
                 >
-                  🖼️ Layouts
+                  Logout
                 </button>
-                <button
-                  onClick={() => setViewMode('camera')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    viewMode === 'camera'
-                      ? 'bg-pink-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                  }`}
-                  disabled={!selectedLayout}
-                >
-                  📷 Camera
-                </button>
-                <button
-                  onClick={() => setViewMode('editing')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    viewMode === 'editing'
-                      ? 'bg-pink-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                  }`}
-                  disabled={!currentPhoto}
-                >
-                  ✨ Edit
-                </button>
-                <button
-                  onClick={() => setViewMode('gallery')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    viewMode === 'gallery'
-                      ? 'bg-pink-500 text-white shadow-lg'
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                  }`}
-                >
-                  🖼️ Gallery
-                </button>
-              </nav>
+              </div>
             </div>
           </div>
         </header>
@@ -375,6 +392,7 @@ const HomePage: React.FC = () => {
                   multiShot={true}
                   multiShotCount={selectedLayout.photoCount}
                   onBack={handleBack}
+                  sessionId={sessionId}
                 />
               </div>
             </div>
@@ -417,13 +435,21 @@ const HomePage: React.FC = () => {
                   selectedLayout={selectedLayout}
                   onRetake={handleRetakePhoto}
                   onBack={handleBack}
+                  addPhoto={addPhoto}
+                  sessionId={sessionId}
+                  userId={userId}
                 />
               </div>
             </div>
           </div>
         )}
 
-        {/* Gallery View removed by user request */}
+        {/* Gallery View */}
+        {viewMode === 'gallery' && (
+          <div className="max-w-6xl mx-auto">
+            <PhotoGallery sessionId={sessionId} userId={userId} />
+          </div>
+        )}
       </main>
     </div>
     </>
