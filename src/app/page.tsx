@@ -3,13 +3,11 @@
 import React, { useState, useCallback } from "react";
 import { Photo, Sticker, Frame } from "../types/photo";
 import { AppliedFilters } from "../types/filters";
-import { usePhotos } from "../hooks/usePhotos";
+import { usePhotos } from "./hooks/usePhotos";
 import CameraPreview from "../components/camera/CameraPreview";
 import PhotoCanvas from "../components/editing/PhotoCanvas";
 import PhotoGallery from "../components/editing/PhotoGallery";
-import Button from "../components/ui/Button";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
-import Modal from "../components/ui/Modal";
 import Head from 'next/head';
 import { signOut } from "next-auth/react";
 import { useSession } from "next-auth/react";
@@ -30,7 +28,7 @@ interface FrameLayout {
 const FRAME_LAYOUTS: FrameLayout[] = [
   {
     id: 'layout-1',
-    name: 'Classic Strip (3 photos)',
+    name: 'Classic Strip',
     photoCount: 3,
     layout: 'vertical',
     description: 'Traditional vertical photo strip',
@@ -46,7 +44,7 @@ const FRAME_LAYOUTS: FrameLayout[] = [
   },
   {
     id: 'layout-3',
-    name: 'Photo Strip (4 photos)',
+    name: 'Photo Strip ',
     photoCount: 4,
     layout: 'vertical',
     description: 'Four photos in a vertical strip',
@@ -88,12 +86,9 @@ const HomePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('frame-selection');
   const [selectedLayout, setSelectedLayout] = useState<FrameLayout | null>(null);
   const [currentPhoto, setCurrentPhoto] = useState<Photo | Photo[] | null>(null);
-  const [capturedPhotos, setCapturedPhotos] = useState<Photo[]>([]);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({ basic: [], advanced: {} });
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { addPhoto, updatePhoto, downloadPhoto, sharePhoto } = usePhotos({ sessionId, userId });
 
@@ -170,19 +165,13 @@ const HomePage: React.FC = () => {
     setStickers(newStickers);
   }, []);
 
-  // Handle add sticker
-  const handleAddSticker = useCallback((sticker: Sticker) => {
-    setStickers(prev => [...prev, sticker]);
-  }, []);
-
-  // Handle remove sticker
-  const handleRemoveSticker = useCallback((stickerId: string) => {
-    setStickers(prev => prev.filter(s => s.id !== stickerId));
-  }, []);
-
-  // Handle update sticker
-  const handleUpdateSticker = useCallback((stickerId: string, updates: Partial<Sticker>) => {
-    setStickers(prev => prev.map(s => s.id === stickerId ? { ...s, ...updates } : s));
+  // Handle retake photo
+  const handleRetakePhoto = useCallback(() => {
+    setCurrentPhoto(null);
+    setAppliedFilters({ basic: [], advanced: {} });
+    setStickers([]);
+    setSelectedFrame(null);
+    setViewMode('camera');
   }, []);
 
   // Handle frame selection
@@ -193,34 +182,6 @@ const HomePage: React.FC = () => {
   // Handle frame removal
   const handleFrameRemove = useCallback(() => {
     setSelectedFrame(null);
-  }, []);
-
-  // Handle apply filters
-  const handleApplyFilters = useCallback(() => {
-    if (currentPhoto) {
-      handlePhotoUpdate({
-        filtersApplied: appliedFilters,
-      });
-    }
-  }, [currentPhoto, appliedFilters, handlePhotoUpdate]);
-
-  // Handle reset filters
-  const handleResetFilters = useCallback(() => {
-    setAppliedFilters({ basic: [], advanced: {} });
-  }, []);
-
-  // Handle retake photo
-  const handleRetakePhoto = useCallback(() => {
-    setCurrentPhoto(null);
-    setAppliedFilters({ basic: [], advanced: {} });
-    setStickers([]);
-    setSelectedFrame(null);
-    setViewMode('camera');
-  }, []);
-
-  // Handle new photo
-  const handleNewPhoto = useCallback(() => {
-    setViewMode('frame-selection');
   }, []);
 
   return (
@@ -297,17 +258,9 @@ const HomePage: React.FC = () => {
           </div>
         </header>
 
-        {/* Main Content */}
+      
         <main className="max-w-7xl mx-auto px-6 py-8">
-          {isLoading && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
-              <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/30">
-                <LoadingSpinner />
-              </div>
-            </div>
-          )}
-
-         {/* Frame Selection View */}
+          {/* Frame Selection View */}
 {viewMode === 'frame-selection' && (
     <div className="flex justify-center items-center min-h-screen p-4">
     <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
@@ -370,7 +323,7 @@ const HomePage: React.FC = () => {
               <h2 className="text-5xl font-bold text-black mb-4">
                 Say Cheese! 📸
               </h2>
-              <p className="text-gray-300 text-xl max-w-2xl mx-auto">
+              <p className="text-black-300 text-xl max-w-2xl mx-auto">
                 Position yourself perfectly and click the capture button to start your photo session
               </p>
               
@@ -399,14 +352,14 @@ const HomePage: React.FC = () => {
 
             {/* Feature Pills */}
             <div className="flex flex-wrap justify-center gap-4 pt-8">
-              <div className="px-6 py-3 bg-white/10 backdrop-blur-md text-white rounded-full text-base font-medium border border-white/20">
-                ✨ Professional Quality
+              <div className="inline-block bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full text-sm font-medium shadow-lg">
+                Professional Quality
               </div>
-              <div className="px-6 py-3 bg-white/10 backdrop-blur-md text-white rounded-full text-base font-medium border border-white/20">
-                🎨 Instant Editing
+              <div className="inline-block bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full text-sm font-medium shadow-lg">
+                 Instant Editing
               </div>
-              <div className="px-6 py-3 bg-white/10 backdrop-blur-md text-white rounded-full text-base font-medium border border-white/20">
-                📱 Easy Sharing
+              <div className="inline-block bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-full text-sm font-medium shadow-lg">
+                Easy Sharing
               </div>
             </div>
           </div>

@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
+import { Photo } from '../../types/photo';
 import Button from "../ui/Button";
 import LoadingSpinner from "../ui/LoadingSpinner";
 
 interface CameraPreviewProps {
-  onPhotoCaptured?: (photo: any) => void;
+  onPhotoCaptured?: (photo: Photo | Photo[]) => void;
   photoSize?: 'small' | 'medium' | 'large';
   countdownDuration?: number;
   audioEnabled?: boolean;
@@ -17,9 +18,7 @@ interface CameraPreviewProps {
 
 const CameraPreview: React.FC<CameraPreviewProps> = ({
   onPhotoCaptured,
-  photoSize = 'medium',
   countdownDuration = 3,
-  audioEnabled = false,
   multiShot = false,
   multiShotCount = 1,
   sessionId,
@@ -31,7 +30,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [capturedPhotos, setCapturedPhotos] = useState<any[]>([]);
+  const [capturedPhotos, setCapturedPhotos] = useState<Photo[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [showGallery, setShowGallery] = useState(false);
@@ -130,9 +129,6 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
 
-      // Create a copy of the original image data
-      const originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      
       // Apply filter to the canvas if a filter is selected
       if (selectedFilter !== 'No Filter') {
         console.log('Applying filter:', selectedFilter);
@@ -142,15 +138,17 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
         console.log('No filter selected');
       }
 
-      const photo = {
+      // Build the photo object first
+      const photo: Photo = {
         id: Date.now().toString(),
         sessionId: sessionId || `session-${Date.now()}`,
         filename: `photo-${Date.now()}.jpg`,
         originalSrc: canvas.toDataURL('image/jpeg', 0.9),
         processedSrc: canvas.toDataURL('image/jpeg', 0.9),
-        filtersApplied: selectedFilter !== 'No Filter' ? applyFilterToPhoto({}).filtersApplied : { basic: [], advanced: {} },
+        imageUrl: canvas.toDataURL('image/jpeg', 0.9),
+        filtersApplied: { basic: [], advanced: {} }, // temp, will set below
         stickers: [],
-        size: 'medium' as const,
+        size: 'medium',
         createdAt: new Date(),
         isDownloaded: false,
         isShared: false,
@@ -158,9 +156,11 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
           width: canvas.width,
           height: canvas.height,
           fileSize: Math.round(canvas.toDataURL('image/jpeg', 0.9).length * 0.75),
-          format: 'jpeg' as const,
+          format: 'jpeg',
         },
       };
+      // Now set filtersApplied correctly
+      photo.filtersApplied = selectedFilter !== 'No Filter' ? applyFilterToPhoto(photo).filtersApplied : { basic: [], advanced: {} };
 
       console.log('Photo captured:', photo);
       setCapturedPhotos(prev => [...prev, photo]);
@@ -237,26 +237,17 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   const handleEditSelected = () => {
     const selectedPhotoIds = Array.from(selectedPhotos);
     const photosToEdit = capturedPhotos.filter(photo => selectedPhotoIds.includes(photo.id));
-    
-    // Apply selected filter to photos if not "No Filter"
-    const filteredPhotos = selectedFilter !== 'No Filter' 
-      ? photosToEdit.map(photo => applyFilterToPhoto(photo))
-      : photosToEdit;
-    
-    if (filteredPhotos.length > 0 && onPhotoCaptured) {
-      onPhotoCaptured(filteredPhotos);
+    if (photosToEdit.length > 0 && onPhotoCaptured) {
+      // Only pass the first selected photo
+      onPhotoCaptured(photosToEdit[0]);
     }
   };
 
   // Handle edit all photos
   const handleEditAll = () => {
     if (capturedPhotos.length > 0 && onPhotoCaptured) {
-      // Apply selected filter to all photos if not "No Filter"
-      const filteredPhotos = selectedFilter !== 'No Filter' 
-        ? capturedPhotos.map(photo => applyFilterToPhoto(photo))
-        : capturedPhotos;
-      
-      onPhotoCaptured(filteredPhotos);
+      // Pass all captured photos for multi-shot/classic strip
+      onPhotoCaptured([...capturedPhotos]);
     }
   };
 
@@ -369,13 +360,15 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   };
 
   // Get image style based on applied filters
-  const getImageStyle = (filtersApplied: any) => {
+  type AppliedFilters = import('../../types/filters').AppliedFilters;
+
+  const getImageStyle = (filtersApplied: AppliedFilters) => {
     if (!filtersApplied) return {};
     
     let filter = '';
     
     // Apply basic filters
-    filtersApplied.basic?.forEach((basicFilter: string) => {
+    Array.isArray(filtersApplied.basic) && filtersApplied.basic.forEach((basicFilter: string) => {
       switch (basicFilter) {
         case 'grayscale':
           filter += 'grayscale(100%) ';
@@ -407,7 +400,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
     });
 
     // Apply advanced filters
-    Object.entries(filtersApplied.advanced || {}).forEach(([key, value]) => {
+    Object.entries((filtersApplied.advanced || {}) as Record<string, number>).forEach(([key, value]) => {
       switch (key) {
         case 'brightness':
           filter += `brightness(${value}%) `;
@@ -430,7 +423,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
   };
 
   // Apply filter to photo
-  const applyFilterToPhoto = (photo: any) => {
+  const applyFilterToPhoto = (photo: Photo) => {
     const filteredPhoto = { ...photo };
     
     switch (selectedFilter) {
@@ -586,17 +579,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
             variant="secondary"
           />
           <Button
-            label={selectedPhotos.size === capturedPhotos.length ? "❌ Deselect All" : "✅ Select All"}
-            onClick={selectedPhotos.size === capturedPhotos.length ? handleDeselectAll : handleSelectAll}
-            variant="secondary"
-          />
-          <Button
-            label={`✏️ Edit Selected (${selectedPhotos.size})`}
-            onClick={handleEditSelected}
-            disabled={selectedPhotos.size === 0}
-          />
-          <Button
-            label="✏️ Edit All Photos"
+            label="✏️ EditPhotos"
             onClick={handleEditAll}
           />
         </div>
@@ -731,7 +714,7 @@ const CameraPreview: React.FC<CameraPreviewProps> = ({
                       src={photo.originalSrc}
                       alt={`Photo ${index + 1}`}
                       className="w-full h-100 object-cover"
-                      style={getImageStyle(photo.filtersApplied)}
+                      style={getImageStyle(photo.filtersApplied) as React.CSSProperties}
                     />
                     <div className="absolute top-2 right-2 bg-white bg-opacity-75 text-gray-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                       {index + 1}

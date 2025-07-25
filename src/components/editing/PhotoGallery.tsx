@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Photo } from '../../types/photo';
-import { usePhotos } from '../../hooks/usePhotos';
+import { usePhotos } from '../../app/hooks/usePhotos';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 

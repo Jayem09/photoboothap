@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Photo, PhotoSession, SocialShareConfig } from '../types/photo';
-import { downloadImage, shareToSocialMedia } from '../lib/image-processing';
+import { Photo, PhotoSession, SocialShareConfig } from '../../types/photo';
+import { downloadImage, shareToSocialMedia } from '../../lib/image-processing';
 import { set, get, del } from 'idb-keyval';
 
 interface UsePhotosOptions {

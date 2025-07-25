@@ -31,7 +31,7 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
     if (audioEnabled && remaining > 0 && remaining <= 3 && typeof window !== 'undefined') {
       try {
         // Create a simple beep sound
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         

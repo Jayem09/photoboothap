@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Photo, PhotoSize, PHOTO_SIZES } from '../types/photo';
-import { generateFilename } from '../lib/image-processing';
+import { Photo, PhotoSize, PHOTO_SIZES } from '../../types/photo';
+import { generateFilename } from '../../lib/image-processing';
 
 interface UseCameraOptions {
   photoSize?: PhotoSize;
@@ -26,7 +26,7 @@ interface UseCameraReturn {
 
 export const useCamera = (options: UseCameraOptions = {}): UseCameraReturn => {
   const {
-    photoSize = PHOTO_SIZES[1], // medium by default
+    photoSize = PHOTO_SIZES[1],
     countdownDuration = 3,
     audioEnabled = false,
     multiShot = false,

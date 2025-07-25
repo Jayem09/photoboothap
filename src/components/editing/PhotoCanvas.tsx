@@ -56,6 +56,11 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
   const [saveStatus, setSaveStatus] = useState<string>("");
   const [saveDisabled, setSaveDisabled] = useState(false);
 
+  // Add constants for grid layout
+  const gridGap = 1; // px, matches gap-4
+  const gridPadding = 1; // px, matches p-4
+  const imageSize = 200; // px, matches w-32 h-32 if you use Tailwind
+
   // Convert photo to array for consistent handling
   const photos = Array.isArray(photo) ? photo : [photo];
   const primaryPhoto = photos[0];
@@ -160,8 +165,9 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
       canvasWidth = 420;
       canvasHeight = 200;
     } else if (layout === 'grid') {
-      canvasWidth = 320;
-      canvasHeight = 320;
+      // 2 columns, 2 rows, gap and padding
+      canvasWidth = gridPadding * 2 + imageSize * 2 + gridGap;
+      canvasHeight = gridPadding * 2 + imageSize * 2 + gridGap;
     } else {
       const boxWidth = 420;
       const boxHeight = Math.round(boxWidth * 9 / 13);
@@ -229,10 +235,10 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
         } else if (layout === 'grid') {
           const col = i % 2;
           const row = Math.floor(i / 2);
-          x = 16 + col * 160;
-          y = 16 + row * 160;
-          width = 128;
-          height = 128;
+          x = gridPadding + col * (imageSize + gridGap);
+          y = gridPadding + row * (imageSize + gridGap);
+          width = imageSize;
+          height = imageSize;
           ctx.fillStyle = '#fff';
           ctx.fillRect(x, y, width, height);
           ctx.drawImage(img, x, y, width, height);
@@ -516,16 +522,18 @@ const PhotoCanvas: React.FC<PhotoCanvasProps> = ({
                         boxShadow: layout === 'grid' ? '0 6px 20px rgba(0,0,0,0.2)' : layout === 'horizontal' ? '0 2px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.1)' : 'none',
                         transition: layout === 'grid' ? 'transform 0.3s ease' : layout === 'horizontal' ? 'all 0.3s ease' : 'none',
                         // backgroundColor: layout === 'grid' ? 'white' : 'black',
-                        padding: layout === 'grid' ? '8px' : '0',
+                        padding: layout === 'grid' ? `${gridGap/2}px` : '0',
                         borderRight: layout === 'horizontal' && index < photoCount - 1 ? '2px solid white' : 'none',
-                        position: layout === 'horizontal' ? 'relative' : 'static'
+                        position: layout === 'horizontal' ? 'relative' : 'static',
+                        width: layout === 'grid' ? `${imageSize}px` : undefined,
+                        height: layout === 'grid' ? `${imageSize}px` : undefined,
                       }}
                     >
                       <img
                         src={photos[index]?.originalSrc || photos[0]?.originalSrc || primaryPhoto?.originalSrc}
                         alt={`Photo ${index + 1}`}
                         className="w-full h-56 object-cover"
-                        style={getImageStyle()}
+                        style={{ ...getImageStyle(), width: layout === 'grid' ? `${imageSize}px` : undefined, height: layout === 'grid' ? `${imageSize}px` : undefined }}
                       />
                       
                       {stickers.map((sticker) => (

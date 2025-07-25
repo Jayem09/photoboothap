@@ -70,7 +70,7 @@ const StickerPanel: React.FC<StickerPanelProps> = ({
   }, [selectedSticker, onRemoveSticker]);
 
   // Handle sticker property updates
-  const handleStickerUpdate = useCallback((stickerId: string, property: keyof Sticker, value: any) => {
+  const handleStickerUpdate = useCallback((stickerId: string, property: keyof Sticker, value: unknown) => {
     onUpdateSticker(stickerId, { [property]: value });
     
     // Update selected sticker if it's the one being edited

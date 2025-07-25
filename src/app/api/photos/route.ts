@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "../auth/authOptions";
 import { PrismaClient } from "@prisma/client";
 import { getToken } from "next-auth/jwt";
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
   // Parse JSON fields for frontend compatibility
-  const result = photos.map((photo: any) => ({
+  const result = photos.map((photo: Record<string, unknown>) => ({
     ...photo,
     filtersApplied: photo.filtersApplied ?? { basic: [], advanced: {} },
     stickers: photo.stickers ?? [],
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  console.log("TOKEN:", token); // Debug log
+  console.log("TOKEN:", token); 
   if (!token?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
